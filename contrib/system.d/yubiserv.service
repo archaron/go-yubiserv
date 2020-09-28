@@ -9,8 +9,8 @@ Conflicts=shutdown.target
 
 [Service]
 Type=simple
-ExecStart=/opt/yubiserv/bin/yubiserv -c /opt/yubiserv/etc/yubiserv.conf --sqlite-dbpath=/opt/yubiserv/var/db/yubiserv.db
-PIDFile=/var/run/yubiserv.pid
+ExecStart=/opt/yubiserv/bin/yubiserv -c /opt/yubiserv/etc/yubiserv.yaml --sqlite-dbpath=/opt/yubiserv/var/db/yubiserv.db
+PIDFile=/run/yubiserv.pid
 KillMode=mixed
 TimeoutStopSec=30
 User=nobody
