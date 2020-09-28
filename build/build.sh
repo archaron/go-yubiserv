@@ -5,7 +5,7 @@ mkdir -p {$RELEASEDIR/,$RELEASEDIR/build/,$RELEASEDIR/rpm/,$RELEASEDIR/deb/}
 rm -rf {$RELEASEDIR/build/*,$RELEASEDIR/rpm/*,$RELEASEDIR/deb/*}
 mkdir -p {$RELEASEDIR/build/opt/yubiserv/bin/,$RELEASEDIR/build/opt/yubiserv/etc/,$RELEASEDIR/build/opt/yubiserv/var/db/,$RELEASEDIR/deb/conf,$RELEASEDIR/build/$UNITDIR}
 
-#make build
+make build
 
 cp ./bin/yubiserv $RELEASEDIR/build/opt/yubiserv/bin
 cp ./contrib/yubiserv.yaml.example $RELEASEDIR/build/opt/yubiserv/etc
