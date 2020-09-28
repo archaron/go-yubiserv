@@ -1,0 +1,9 @@
+[main]
+plugins=1
+
+[ovpm]
+name = Yubiserv yum repository
+baseurl = https://repo.fiberside.ru/yubiserv/rpm/
+gpgcheck=0
+sslverify=1
+enabled=1

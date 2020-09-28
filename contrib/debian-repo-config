@@ -1,0 +1,4 @@
+Codename: yubiserv
+Components: main
+Architectures: amd64
+Maintainer: Alexander Tischenko <tsm@fiberside.ru>
