@@ -161,10 +161,3 @@ func (s *Service) readiness(ctx *fasthttp.RequestCtx) {
 		"status": "ok",
 	})
 }
-
-// https://api3.yubico.com/wsapi/2.0/verify?id=57751&nonce=dmoxqybbgppazmndfnkrgtwuvpbtxped&otp=cccccciikijfkgncigdktefgkvtiknhbhngjjlvtlkhu&timestamp=1
-
-// http://localhost:8080/wsapi/2.0/verify?id=1&otp=vvungrrdhvtklknvrtvuvbbkeidikkvgglrvdgrfcdft&nonce=jrFwbaYFhn0HoxZIsd9LQ6w2ceU&h=%2Bja8S3IjbX593/LAgTBixwPNGX4%3D
-// https://github.com/Yubico/yubikey-val/blob/master/ykval-common.php
-// https://developers.yubico.com/OTP/Specifications/OTP_validation_protocol.html
-// https://developers.yubico.com/OTP/Specifications/Test_vectors.html
