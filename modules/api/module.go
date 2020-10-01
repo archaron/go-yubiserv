@@ -38,5 +38,7 @@ func newAPIService(p serviceParams) (service.Service, error) {
 		apiKey:   apiKey,
 		timeout:  p.Config.GetDuration("api.timeout"),
 		storage:  p.Storage,
+		cert:     p.Config.GetString("api.tls_cert"),
+		key:      p.Config.GetString("api.tls_key"),
 	}, nil
 }

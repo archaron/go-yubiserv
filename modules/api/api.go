@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"github.com/archaron/go-yubiserv/common"
 	"github.com/im-kulikov/helium/settings"
 	"github.com/spf13/viper"
@@ -31,8 +32,14 @@ type (
 
 		apiKey  []byte
 		timeout time.Duration
+		cert    string
+		key     string
 	}
 )
+
+func (s *Service) Printf(format string, args ...interface{}) {
+	s.log.Warn(fmt.Sprintf(format, args))
+}
 
 func (s *Service) Start(ctx context.Context) error {
 	var err error
@@ -41,6 +48,7 @@ func (s *Service) Start(ctx context.Context) error {
 		Handler:      s.requestHandler,
 		ReadTimeout:  s.timeout,
 		WriteTimeout: s.timeout,
+		Logger:       s,
 		//		IdleTimeout:                        s.idleTimeout,
 	}
 
@@ -49,11 +57,21 @@ func (s *Service) Start(ctx context.Context) error {
 		return err
 	}
 
-	go func() {
-		if err = s.listener.ListenAndServe(s.address); err != nil {
-			s.log.Fatal("api listen error", zap.Error(err))
-		}
-	}()
+	if s.cert != "" && s.key != "" {
+		s.log.Debug("listen in secured TLS mode")
+		go func() {
+			if err = s.listener.ListenAndServeTLS(s.address, s.cert, s.key); err != nil {
+				s.log.Fatal("api tls listen error", zap.Error(err))
+			}
+		}()
+	} else {
+		s.log.Debug("listen in unsecured HTTP mode")
+		go func() {
+			if err = s.listener.ListenAndServe(s.address); err != nil {
+				s.log.Fatal("api listen error", zap.Error(err))
+			}
+		}()
+	}
 
 	return err
 

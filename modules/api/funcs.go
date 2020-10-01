@@ -6,7 +6,6 @@ import (
 	"github.com/archaron/go-yubiserv/common"
 	"github.com/valyala/fasthttp"
 	"go.uber.org/zap"
-	"sort"
 	"strings"
 	"time"
 )
@@ -37,38 +36,24 @@ func (s *Service) okResponse(ctx *fasthttp.RequestCtx, extra map[string]string) 
 
 func (s *Service) response(ctx *fasthttp.RequestCtx, status string, apiKey []byte, extra map[string]string) error {
 
-	fields := map[string]string{
-		"status": status,
-		"t":      strings.ReplaceAll(time.Now().In(s.gmtLocation).Format("2006-01-02T15:04:05Z0.000"), ".", ""),
-	}
+	// Create ordered pieces
+	ordered := make([]string, 0, 5)
+
+	ordered = append(ordered, "t="+strings.ReplaceAll(time.Now().In(s.gmtLocation).Format("2006-01-02T15:04:05Z0.000"), ".", ""))
 
 	if extra != nil {
-		for k := range extra {
-			fields[k] = extra[k]
+		for n := range extra {
+			ordered = append(ordered, n+"="+extra[n])
 		}
 	}
 
-	// Ensure keys are alphabetical ordered
-	keys := make([]string, 0, len(fields))
-	for k := range fields {
-		keys = append(keys, k)
-	}
-
-	// Sort keys slice
-	sort.Strings(keys)
-
-	// Create ordered pieces
-	var ordered []string
-	for n := range keys {
-		ordered = append(ordered, keys[n]+"="+fields[keys[n]])
-	}
-
-	// Add signatrure
+	ordered = append(ordered, "status="+status)
 	if apiKey != nil {
-		ordered = append(ordered, "h="+common.SignMapToBase64(ordered, apiKey))
+		ordered = append([]string{"h=" + common.SignMapToBase64(ordered, apiKey)}, ordered...) // Add signature
 	}
+
 	ctx.SetStatusCode(200)
-	_, err := fmt.Fprint(ctx, strings.Join(ordered, "\n"))
+	_, err := fmt.Fprint(ctx, strings.Join(ordered, "\r\n")+"\r\n")
 	return err
 }
 

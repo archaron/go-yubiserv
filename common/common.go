@@ -13,8 +13,10 @@ signMap - signs specified strings slice with given apiKey
 @return []byte Raw HMAC signature
 */
 func SignMap(m []string, apiKey []byte) []byte {
-	sort.Strings(m)
-	payload := strings.Join(m, "&")
+	mc := make([]string, len(m))
+	copy(mc, m)
+	sort.Strings(mc)
+	payload := strings.Join(mc, "&")
 	h := hmac.New(sha1.New, apiKey)
 	h.Write([]byte(payload))
 	return h.Sum(nil)

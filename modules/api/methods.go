@@ -8,7 +8,6 @@ import (
 	"github.com/archaron/go-yubiserv/misc"
 	"github.com/valyala/fasthttp"
 	"go.uber.org/zap"
-	"net/url"
 	"regexp"
 	"strings"
 )
@@ -60,8 +59,6 @@ func (s *Service) verify(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	extra["nonce"] = nonce
-
 	// If we have an apiKey to verify signature
 	if len(s.apiKey) > 0 {
 
@@ -71,13 +68,6 @@ func (s *Service) verify(ctx *fasthttp.RequestCtx) {
 
 		// If incoming client signature exists, check it
 		if hLen > 0 {
-
-			h, err = url.QueryUnescape(h)
-			if err != nil {
-				log.Error("cannot unescape query string in H field", zap.String("h", h), zap.Error(err))
-				s.paramMissingResponse(ctx, extra)
-				return
-			}
 
 			hmacSignature, err := base64.StdEncoding.DecodeString(h)
 			if err != nil {
@@ -120,6 +110,11 @@ func (s *Service) verify(ctx *fasthttp.RequestCtx) {
 	}
 
 	extra["otp"] = otp
+	extra["nonce"] = nonce
+	//extra["sl"] = "100"
+	//extra["timestamp"] = strconv.Itoa(int(time.Now().In(s.gmtLocation).Unix()))
+	//extra["sessioncounter"] = "2"
+	//extra["sessionuse"] = "7"
 
 	if s.storage == nil {
 		s.log.Fatal("storage is nil")

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"github.com/archaron/go-yubiserv/misc"
 	"github.com/archaron/go-yubiserv/modules/app"
@@ -19,11 +20,23 @@ func defaults(ctx *cli.Context, v *viper.Viper) error {
 	if ctx.Bool("debug") {
 		misc.Debug = true
 	}
-	v.SetDefault("logger.full_caller", true)
+	v.SetDefault("logger.full_caller", false)
 	// api:
 	v.SetDefault("api.address", ctx.String("api-address"))
 	v.SetDefault("api.timeout", ctx.String("api-timeout"))
 	v.SetDefault("api.secret", ctx.String("api-secret"))
+
+	tlsCert := ctx.String("api-tls-cert")
+	tlsKey := ctx.String("api-tls-key")
+
+	if tlsCert != "" || tlsKey != "" {
+		if tlsCert == "" || tlsKey == "" {
+			return errors.New("both tls certificate file and private key file must be set to enable TLS")
+		}
+	}
+
+	v.SetDefault("api.tls_cert", tlsCert)
+	v.SetDefault("api.tls_key", tlsKey)
 
 	// logger:
 	v.SetDefault("logger.format", "console")
@@ -117,6 +130,9 @@ func main() {
 		&cli.StringFlag{Name: "api-address", Value: ":8080", Usage: "Validation API bind address"},
 		&cli.StringFlag{Name: "api-timeout", Value: "1s", Usage: "Validation API connect/read timeout"},
 		&cli.StringFlag{Name: "api-secret", Value: "", Usage: "Validation API secret for HMAC signature verification, empty to disable check"},
+
+		&cli.StringFlag{Name: "api-tls-cert", Value: "", Usage: "Validation API TLS cert file path"},
+		&cli.StringFlag{Name: "api-tls-key", Value: "", Usage: "Validation API TLS private key file path"},
 
 		&cli.StringFlag{Name: "sqlite-dbpath", Value: "yubiserv.db", Usage: "SQLite3 database path"},
 	}
