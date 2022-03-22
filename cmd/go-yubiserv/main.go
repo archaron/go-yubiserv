@@ -4,8 +4,14 @@ import (
 	"errors"
 	"fmt"
 	"github.com/archaron/go-yubiserv/misc"
-	"github.com/archaron/go-yubiserv/modules/app"
+	"github.com/archaron/go-yubiserv/modules/api"
+	"github.com/archaron/go-yubiserv/modules/sqlitestorage"
+	"github.com/archaron/go-yubiserv/modules/vaultstorage"
 	"github.com/im-kulikov/helium"
+	"github.com/im-kulikov/helium/grace"
+	"github.com/im-kulikov/helium/logger"
+	"github.com/im-kulikov/helium/module"
+	"github.com/im-kulikov/helium/settings"
 	"github.com/spf13/viper"
 	"github.com/urfave/cli/v2"
 	"go.uber.org/dig"
@@ -21,22 +27,6 @@ func defaults(ctx *cli.Context, v *viper.Viper) error {
 		misc.Debug = true
 	}
 	v.SetDefault("logger.full_caller", false)
-	// api:
-	v.SetDefault("api.address", ctx.String("api-address"))
-	v.SetDefault("api.timeout", ctx.String("api-timeout"))
-	v.SetDefault("api.secret", ctx.String("api-secret"))
-
-	tlsCert := ctx.String("api-tls-cert")
-	tlsKey := ctx.String("api-tls-key")
-
-	if tlsCert != "" || tlsKey != "" {
-		if tlsCert == "" || tlsKey == "" {
-			return errors.New("both tls certificate file and private key file must be set to enable TLS")
-		}
-	}
-
-	v.SetDefault("api.tls_cert", tlsCert)
-	v.SetDefault("api.tls_key", tlsKey)
 
 	// logger:
 	v.SetDefault("logger.format", "console")
@@ -55,10 +45,35 @@ func defaults(ctx *cli.Context, v *viper.Viper) error {
 	v.SetDefault("logger.sampling.initial", 100)
 	v.SetDefault("logger.sampling.thereafter", 100)
 
-	v.SetDefault("sqlite.dbpath", ctx.String("sqlite-dbpath"))
+	v.SetDefault("shutdown_timeout", 30*time.Second)
 
+	if err := api.Defaults(ctx, v); err != nil {
+		return err
+	}
+
+	if err := vaultstorage.Defaults(ctx, v); err != nil {
+		return err
+	}
+
+	err := v.WriteConfigAs("./x.yaml")
+	if err != nil {
+		return err
+	}
 	return nil
 }
+
+var modules = module.Combine(
+	helium.DefaultApp, // default application
+	grace.Module,      // grace context
+	settings.Module,   // settings module
+	logger.Module,     // logger module
+	api.Module,
+)
+
+var generateModules = module.Combine(
+	settings.Module, // settings module
+	logger.Module,   // logger module
+)
 
 func main() {
 
@@ -69,7 +84,7 @@ func main() {
 	c.Authors = []*cli.Author{
 		{
 			Name:  "Alexander Tischenko",
-			Email: "tsm@fiberside.ru",
+			Email: "tsm@archaron.ru",
 		},
 	}
 	c.Usage = "Yubikey verification server"
@@ -127,20 +142,33 @@ func main() {
 
 		&cli.BoolFlag{Name: "log-disclaimer", Value: false, Usage: "Show app name and version in log"},
 
-		&cli.StringFlag{Name: "api-address", Value: ":8080", Usage: "Validation API bind address"},
+		&cli.StringFlag{Name: "api-address", Value: ":8443", Usage: "Validation API bind address"},
 		&cli.StringFlag{Name: "api-timeout", Value: "1s", Usage: "Validation API connect/read timeout"},
 		&cli.StringFlag{Name: "api-secret", Value: "", Usage: "Validation API secret for HMAC signature verification, empty to disable check"},
 
 		&cli.StringFlag{Name: "api-tls-cert", Value: "", Usage: "Validation API TLS cert file path"},
 		&cli.StringFlag{Name: "api-tls-key", Value: "", Usage: "Validation API TLS private key file path"},
 
+		&cli.StringFlag{Name: "keystore", Value: "vault", Usage: "Key store backend: sqlite, vault"},
+
 		&cli.StringFlag{Name: "sqlite-dbpath", Value: "yubiserv.db", Usage: "SQLite3 database path"},
+
+		&cli.StringFlag{Name: "vault-address", Value: "127.0.0.1", Usage: "Vault server address"},
+		&cli.StringFlag{Name: "vault-role-file", Value: "role_id", Usage: "Path to file containing role_id for Vault auth"},
+		&cli.StringFlag{Name: "vault-secret-file", Value: "secret_id", Usage: "Path to file containing secret_id for Vault auth"},
 	}
 
 	// Default action
 	c.Action = func(ctx *cli.Context) error {
-
-		settings := &helium.Settings{
+		switch ctx.String("keystore") {
+		case "vault":
+			modules = modules.Append(vaultstorage.Module)
+		case "sqlite":
+			modules = modules.Append(sqlitestorage.Module)
+		default:
+			return errors.New("unknown keystore")
+		}
+		h, err := helium.New(&helium.Settings{
 			File:         ctx.String("config"),
 			Prefix:       misc.Prefix,
 			Name:         misc.Name,
@@ -150,9 +178,7 @@ func main() {
 			Defaults: func(v *viper.Viper) error {
 				return defaults(ctx, v)
 			},
-		}
-
-		h, err := helium.New(settings, app.Module)
+		}, modules)
 		if err != nil {
 			return err
 		}
@@ -173,7 +199,7 @@ func generator() cli.ActionFunc {
 			Name:         misc.Name,
 			BuildTime:    misc.Version,
 			BuildVersion: misc.Build,
-		}, app.GenerateModule)
+		}, generateModules)
 
 		if err != nil {
 			return err

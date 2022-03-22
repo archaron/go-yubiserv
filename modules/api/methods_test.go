@@ -1,18 +1,13 @@
 package api
 
 import (
-	"context"
 	"encoding/base64"
 	"encoding/hex"
-	"fmt"
 	"github.com/archaron/go-yubiserv/common"
 	"github.com/archaron/go-yubiserv/misc"
 	"github.com/stretchr/testify/assert"
-	"github.com/valyala/fasthttp"
-	"github.com/valyala/fasthttp/fasthttputil"
 	"go.uber.org/zap/zaptest"
 	"io/ioutil"
-	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -71,7 +66,7 @@ func TestVerify(t *testing.T) {
 			"id":    []string{"1"},
 			"otp":   []string{"cccccccccccbiucvrkjiegbhidrcicvlgrcgkgurhjnj"},
 			"nonce": []string{"jrFwbaYFhn0HoxZIsd9LQ6w2ceU"},
-			"h":     []string{"Fieq5toKf4ts%2BLp2nCdibXjeUDI%3D"},
+			"h":     []string{"Fieq5toKf4ts+Lp2nCdibXjeUDI="},
 		}
 
 		req, err := http.NewRequest(http.MethodGet, "http://test/wsapi/2.0/verify/?"+q.Encode(), nil)
@@ -79,7 +74,7 @@ func TestVerify(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		res, err := serve(svc.verify, req)
+		res, err := common.Serve(svc.verify, req)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -105,29 +100,4 @@ func TestVerify(t *testing.T) {
 		assert.Equal(t, "OK", values["status"])
 	})
 
-}
-
-// serve serves http request using provided fasthttp handler
-func serve(handler fasthttp.RequestHandler, req *http.Request) (*http.Response, error) {
-	ln := fasthttputil.NewInmemoryListener()
-	defer func() {
-		_ = ln.Close()
-	}()
-
-	go func() {
-		err := fasthttp.Serve(ln, handler)
-		if err != nil {
-			panic(fmt.Errorf("failed to serve: %v", err))
-		}
-	}()
-
-	client := http.Client{
-		Transport: &http.Transport{
-			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				return ln.Dial()
-			},
-		},
-	}
-
-	return client.Do(req)
 }

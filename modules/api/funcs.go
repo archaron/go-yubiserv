@@ -16,6 +16,12 @@ func (s *Service) paramMissingResponse(ctx *fasthttp.RequestCtx, extra map[strin
 	}
 }
 
+func (s *Service) replayedOTPResponse(ctx *fasthttp.RequestCtx, extra map[string]string) {
+	if err := s.response(ctx, ResponseCodeReplayedOTP, s.apiKey, extra); err != nil {
+		s.log.Error("error sending replayed OTP response", zap.Error(err))
+	}
+}
+
 func (s *Service) badOTPResponse(ctx *fasthttp.RequestCtx, extra map[string]string) {
 	if err := s.response(ctx, ResponseCodeBadOTP, s.apiKey, extra); err != nil {
 		s.log.Error("error sending bad OTP response", zap.Error(err))

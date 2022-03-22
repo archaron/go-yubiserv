@@ -9,6 +9,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
+	"github.com/urfave/cli/v2"
 	"go.uber.org/dig"
 	"go.uber.org/zap"
 	"sync"
@@ -39,6 +40,7 @@ type (
 )
 
 func (s *Service) Start(ctx context.Context) error {
+
 	var err error
 	s.log.Debug("keys storage start", zap.String("db_path", s.dbPath))
 
@@ -52,16 +54,27 @@ func (s *Service) Start(ctx context.Context) error {
 		return err
 	}
 
-	return s.createDatabase()
+	if err := s.createDatabase(); err != nil {
+		return err
+	}
+
+	<-ctx.Done()
+
+	return ctx.Err()
 }
 
-func (s *Service) Stop() error {
+func (s *Service) Stop(ctx context.Context) {
+
 	if s.db != nil {
-		return s.db.Close()
+		_ = s.db.Close()
 	}
-	return nil
 }
 
 func (s *Service) Name() string {
 	return "sqlite-keys-storage"
+}
+
+func Defaults(ctx *cli.Context, v *viper.Viper) error {
+	v.SetDefault("sqlite.dbpath", ctx.String("sqlite-dbpath"))
+	return nil
 }

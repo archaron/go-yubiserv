@@ -5,8 +5,11 @@ import "errors"
 // StorageInterface for implementing keys storage
 type StorageInterface interface {
 
-	// Decrypt OTP using stored private AES for specified public identifier
+	// DecryptOTP using stored private AES for specified public identifier
 	DecryptOTP(publicID, token string) (*OTP, error)
+
+	// UpdateCounters in db storage
+	//UpdateCounters(publicId string, usageCounter uint16, sessionCounter uint8) error
 }
 
 var (

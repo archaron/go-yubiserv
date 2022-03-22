@@ -4,16 +4,22 @@ import (
 	"bytes"
 	"crypto/hmac"
 	"encoding/base64"
+	"fmt"
 	"github.com/archaron/go-yubiserv/common"
 	"github.com/archaron/go-yubiserv/misc"
+	"github.com/archaron/go-yubiserv/modules/api/templates"
 	"github.com/valyala/fasthttp"
 	"go.uber.org/zap"
+	"io/ioutil"
+	"math/rand"
+	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
+	"time"
 )
 
 func (s *Service) verify(ctx *fasthttp.RequestCtx) {
-
 	args := ctx.QueryArgs()
 	extra := make(map[string]string)
 
@@ -83,7 +89,7 @@ func (s *Service) verify(ctx *fasthttp.RequestCtx) {
 					sm = append(sm, string(key)+"="+string(value))
 				}
 			})
-
+			//spew.Dump(sm)
 			signature := common.SignMap(sm, s.apiKey)
 			log.Debug("HMAC signature", zap.String("signature", common.SignMapToBase64(sm, s.apiKey)))
 			if !hmac.Equal(hmacSignature, signature) {
@@ -116,25 +122,59 @@ func (s *Service) verify(ctx *fasthttp.RequestCtx) {
 	//extra["sessioncounter"] = "2"
 	//extra["sessionuse"] = "7"
 
+	publicId := matches[0][1]
+
+	log = log.With(zap.String("id", publicId))
+
 	if s.storage == nil {
-		s.log.Fatal("storage is nil")
+		log.Fatal("storage is nil")
 	}
 
-	otpData, err := s.storage.DecryptOTP(matches[0][1], matches[0][2])
+	otpData, err := s.storage.DecryptOTP(publicId, matches[0][2])
 	if err != nil {
 		log.Error("error decrypting OTP", zap.Error(err))
 		s.badOTPResponse(ctx, extra)
 		return
 	}
 
+	user, ok := s.Users[publicId]
+	if !ok {
+		s.Users[publicId] = &common.OTPUser{
+			UsageCounter:   otpData.UsageCounter,
+			SessionCounter: otpData.SessionCounter,
+			Timestamp:      otpData.TimestampCounter,
+		}
+		log.Debug("add new OTP user")
+	} else {
+		log.Debug("existing OTP user", zap.Any("data", user))
+		if (user.UsageCounter > otpData.UsageCounter) || (user.UsageCounter == otpData.UsageCounter && user.SessionCounter >= otpData.SessionCounter) {
+			log.Warn("saved counters >= OTP decoded counters, rejecting",
+				zap.Uint8("saved_session_counter", user.SessionCounter),
+				zap.Uint8("otp_session_counter", otpData.SessionCounter),
+
+				zap.Uint16("saved_usage_counter", user.UsageCounter),
+				zap.Uint16("otp_usage_counter", otpData.UsageCounter),
+			)
+			s.replayedOTPResponse(ctx, extra)
+			return
+		}
+		// Save current counter
+		user.UsageCounter = otpData.UsageCounter
+		user.Timestamp = otpData.TimestampCounter
+		user.SessionCounter = otpData.SessionCounter
+	}
+
+	//if err := s.storage.UpdateCounters(publicId, otpData.UsageCounter, otpData.SessionCounter); err != nil {
+	//	log.Error("cannot update counters", zap.Error(err))
+	//}
+
 	log.Debug("otp decoded, access granted",
-		zap.String("public_id", matches[0][1]),
+		zap.String("public_id", publicId),
 		zap.String("otp", otpData.String()),
 	)
 
 	// TODO: Check usage counters & etc here!
 	s.okResponse(ctx, extra)
-
 }
 
 func (s *Service) version(ctx *fasthttp.RequestCtx) {
@@ -155,4 +195,63 @@ func (s *Service) readiness(ctx *fasthttp.RequestCtx) {
 	s.jsonResponse(ctx, 200, map[string]interface{}{
 		"status": "ok",
 	})
+}
+
+type TestResponseParams struct {
+	Result string
+}
+
+func (s *Service) test(ctx *fasthttp.RequestCtx) {
+	ctx.SetStatusCode(200)
+	ctx.SetContentType("text/html")
+
+	params := TestResponseParams{}
+
+	otp := string(ctx.QueryArgs().Peek("otp"))
+	if len(otp) > 0 {
+		requestId := fmt.Sprintf("%6d", time.Now().Unix())
+		rand.Seed(time.Now().UnixNano())
+		b := make([]byte, 16)
+		rand.Read(b)
+		nonce := fmt.Sprintf("%x", b)[:32]
+
+		data := []string{
+			"id=" + requestId,
+			"otp=" + otp,
+			"nonce=" + nonce,
+		}
+
+		signature := common.SignMapToBase64(data, s.apiKey)
+
+		q := url.Values{
+			"id":    []string{requestId},
+			"otp":   []string{otp},
+			"nonce": []string{nonce},
+			"h":     []string{signature},
+		}
+
+		req, err := http.NewRequest(http.MethodGet, "http://test/wsapi/2.0/verify/?"+q.Encode(), nil)
+		if err != nil {
+			s.log.Error("error creating test request", zap.Error(err))
+			return
+		}
+
+		res, err := common.Serve(s.verify, req)
+		if err != nil {
+			s.log.Error("error serving test request", zap.Error(err))
+		}
+
+		body, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			s.log.Error("error reading response", zap.Error(err))
+		}
+
+		params.Result = string(body)
+	}
+
+	err := templates.IndexTemplate.Execute(ctx, params)
+	if err != nil {
+		s.log.Error("error executing test template", zap.Error(err))
+	}
+
 }

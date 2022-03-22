@@ -1,6 +1,8 @@
 package sqlitestorage
 
-import "github.com/im-kulikov/helium/module"
+import (
+	"github.com/im-kulikov/helium/module"
+)
 
 // Module storage constructor
 var Module = module.Module{

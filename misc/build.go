@@ -1,8 +1,7 @@
 package misc
 
 var (
-	//Config  = "config.yml"
-	Debug   = false
+	Debug   = true
 	Name    = "yubiserv"
 	Prefix  = "YSR"
 	Build   = "now"

@@ -66,9 +66,9 @@ func (s *Service) StoreKey(k *key) error {
 	return errors.Wrap(err, "cannot store key")
 }
 
-func (s *Service) GetKey(public_id string) (*key, error) {
+func (s *Service) GetKey(publicId string) (*key, error) {
 	key := key{}
-	row := s.db.QueryRowx("SELECT id, public_id, created, private_id, lock_code, aes_key, active FROM Keys WHERE public_id=?", public_id)
+	row := s.db.QueryRowx("SELECT id, public_id, created, private_id, lock_code, aes_key, active FROM Keys WHERE public_id=?", publicId)
 
 	if err := row.StructScan(&key); err != nil {
 		return nil, err
@@ -95,3 +95,8 @@ func (s *Service) createDatabase() error {
 	}
 	return nil
 }
+
+//
+//func (s *Service) UpdateCounters(publicId string, usageCounter uint16, sessionCounter uint8) error {
+//	return nil
+//}

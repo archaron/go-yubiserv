@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/archaron/go-yubiserv/common"
+	"github.com/coreos/go-systemd/daemon"
 	"github.com/im-kulikov/helium/settings"
 	"github.com/spf13/viper"
 	"github.com/valyala/fasthttp"
@@ -30,10 +31,15 @@ type (
 		gmtLocation *time.Location
 		storage     common.StorageInterface
 
+		ctx    context.Context
+		cancel context.CancelFunc
+
 		apiKey  []byte
 		timeout time.Duration
 		cert    string
 		key     string
+
+		Users common.OTPUsers
 	}
 )
 
@@ -42,14 +48,13 @@ func (s *Service) Printf(format string, args ...interface{}) {
 }
 
 func (s *Service) Start(ctx context.Context) error {
+	s.ctx, s.cancel = context.WithCancel(ctx)
 	var err error
-
 	s.listener = &fasthttp.Server{
 		Handler:      s.requestHandler,
 		ReadTimeout:  s.timeout,
 		WriteTimeout: s.timeout,
 		Logger:       s,
-		//		IdleTimeout:                        s.idleTimeout,
 	}
 
 	s.gmtLocation, err = time.LoadLocation("GMT")
@@ -57,7 +62,7 @@ func (s *Service) Start(ctx context.Context) error {
 		return err
 	}
 
-	if s.cert != "" && s.key != "" {
+	if false && s.cert != "" && s.key != "" {
 		s.log.Debug("listen in secured TLS mode")
 		go func() {
 			if err = s.listener.ListenAndServeTLS(s.address, s.cert, s.key); err != nil {
@@ -73,16 +78,29 @@ func (s *Service) Start(ctx context.Context) error {
 		}()
 	}
 
-	return err
+	// Notify systemd
+	if _, err := daemon.SdNotify(false, daemon.SdNotifyReady); err != nil {
+		s.log.Info("error sending systemd ready notify")
+	}
 
+	s.Watchdog(s.ctx)
+
+	<-s.ctx.Done()
+	return s.ctx.Err()
 }
 
-func (s *Service) Stop() error {
+func (s *Service) Stop(ctx context.Context) {
+	defer s.cancel()
+	// Notify systemd app is stopping
+	if _, err := daemon.SdNotify(false, daemon.SdNotifyStopping); err != nil {
+		s.log.Info("error sending systemd ready notify")
+	}
+
 	if s.listener != nil {
 		s.log.Info("api.stop")
-		return s.listener.Shutdown()
+		_ = s.listener.Shutdown()
 	}
-	return nil
+
 }
 
 func (s *Service) Name() string {
@@ -107,9 +125,40 @@ func (s *Service) requestHandler(ctx *fasthttp.RequestCtx) {
 		// Service health check
 		s.health(ctx)
 
+	case "/":
+		s.test(ctx)
 	default:
 		ctx.Error("Unsupported path", fasthttp.StatusNotFound)
 		return
 	}
 
+}
+
+func (s *Service) Watchdog(ctx context.Context) {
+
+	go func(ctx context.Context) {
+		interval, err := daemon.SdWatchdogEnabled(false)
+		if err != nil || interval == 0 {
+			return
+		}
+
+		interval /= 2
+		s.log.Debug("watchdog start", zap.Duration("interval", interval))
+
+		timer := time.NewTimer(interval)
+		defer timer.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-timer.C:
+				if _, err := daemon.SdNotify(false, daemon.SdNotifyWatchdog); err != nil {
+					s.log.Info("error sending systemd alive notify")
+				}
+
+				timer.Reset(interval)
+			}
+		}
+	}(ctx)
 }
