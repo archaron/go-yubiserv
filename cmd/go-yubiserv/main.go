@@ -3,10 +3,9 @@ package main
 import (
 	"errors"
 	"fmt"
-	"github.com/archaron/go-yubiserv/misc"
-	"github.com/archaron/go-yubiserv/modules/api"
-	"github.com/archaron/go-yubiserv/modules/sqlitestorage"
-	"github.com/archaron/go-yubiserv/modules/vaultstorage"
+	"os"
+	"time"
+
 	"github.com/im-kulikov/helium"
 	"github.com/im-kulikov/helium/grace"
 	"github.com/im-kulikov/helium/logger"
@@ -16,16 +15,18 @@ import (
 	"github.com/urfave/cli/v2"
 	"go.uber.org/dig"
 	"go.uber.org/zap"
-	"time"
 
-	"os"
+	"github.com/archaron/go-yubiserv/misc"
+	"github.com/archaron/go-yubiserv/modules/api"
+	"github.com/archaron/go-yubiserv/modules/sqlitestorage"
+	"github.com/archaron/go-yubiserv/modules/vaultstorage"
 )
 
 func defaults(ctx *cli.Context, v *viper.Viper) error {
-
 	if ctx.Bool("debug") {
 		misc.Debug = true
 	}
+
 	v.SetDefault("logger.full_caller", false)
 
 	// logger:
@@ -39,8 +40,12 @@ func defaults(ctx *cli.Context, v *viper.Viper) error {
 	}
 
 	v.SetDefault("logger.trace_level", "fatal")
-	v.SetDefault("logger.no_disclaimer", !ctx.Bool("log-disclaimer"))
-	v.SetDefault("logger.color", true)
+	v.SetDefault("logger.format", ctx.String("log-format"))
+
+	v.SetDefault("logger.no_disclaimer", true)
+	v.SetDefault("logger.color", ctx.String("log-format") != "json")
+
+	// v.SetDefault("logger.no_caller", true)
 	v.SetDefault("logger.full_caller", false)
 	v.SetDefault("logger.sampling.initial", 100)
 	v.SetDefault("logger.sampling.thereafter", 100)
@@ -55,13 +60,15 @@ func defaults(ctx *cli.Context, v *viper.Viper) error {
 		return err
 	}
 
-	err := v.WriteConfigAs("./x.yaml")
-	if err != nil {
-		return err
-	}
+	//err := v.WriteConfigAs("./x.yaml")
+	//if err != nil {
+	//	return err
+	//}
+
 	return nil
 }
 
+// nolint:gochecknoglobals
 var modules = module.Combine(
 	helium.DefaultApp, // default application
 	grace.Module,      // grace context
@@ -70,13 +77,13 @@ var modules = module.Combine(
 	api.Module,
 )
 
+// nolint:gochecknoglobals
 var generateModules = module.Combine(
 	settings.Module, // settings module
 	logger.Module,   // logger module
 )
 
 func main() {
-
 	c := cli.NewApp()
 	c.Name = misc.Name
 	c.Version = misc.Version
@@ -140,7 +147,7 @@ func main() {
 
 		&cli.BoolFlag{Name: "debug", Aliases: []string{"d"}, Value: false, Usage: "Enable debug mode"},
 
-		&cli.BoolFlag{Name: "log-disclaimer", Value: false, Usage: "Show app name and version in log"},
+		&cli.StringFlag{Name: "log-format", Value: "console", Usage: "Log format: console/json"},
 
 		&cli.StringFlag{Name: "api-address", Value: ":8443", Usage: "Validation API bind address"},
 		&cli.StringFlag{Name: "api-timeout", Value: "1s", Usage: "Validation API connect/read timeout"},
@@ -153,7 +160,8 @@ func main() {
 
 		&cli.StringFlag{Name: "sqlite-dbpath", Value: "yubiserv.db", Usage: "SQLite3 database path"},
 
-		&cli.StringFlag{Name: "vault-address", Value: "127.0.0.1", Usage: "Vault server address"},
+		&cli.StringFlag{Name: "vault-address", Value: "https://127.0.0.1:8200", Usage: "Vault server address"},
+		&cli.StringFlag{Name: "vault-path", Value: "secret/data/yubiserv", Usage: "Vault path to KV secrets store"},
 		&cli.StringFlag{Name: "vault-role-file", Value: "role_id", Usage: "Path to file containing role_id for Vault auth"},
 		&cli.StringFlag{Name: "vault-secret-file", Value: "secret_id", Usage: "Path to file containing secret_id for Vault auth"},
 	}
@@ -193,20 +201,17 @@ func main() {
 
 func generator() cli.ActionFunc {
 	return func(c *cli.Context) error {
-
 		h, err := helium.New(&helium.Settings{
 			Prefix:       misc.Prefix,
 			Name:         misc.Name,
 			BuildTime:    misc.Version,
 			BuildVersion: misc.Build,
 		}, generateModules)
-
 		if err != nil {
 			return err
 		}
 
 		return h.Invoke(func(log *zap.Logger) {
-
 			start := c.Int("start")
 			count := c.Int("count")
 			progflags := c.String("progflags")
@@ -215,7 +220,7 @@ func generator() cli.ActionFunc {
 			fmt.Printf("# start %d end %d\n", start, start+count)
 			fmt.Println("# serialnr,identity,internaluid,aeskey,lockpw,created,accessed[,progflags]")
 
-			//rand.Read()
+			// rand.Read()
 
 			for i := start; i <= count; i++ {
 				ctr := fmt.Sprintf("%012x", i)
@@ -235,12 +240,10 @@ func generator() cli.ActionFunc {
 					log.Fatal("error generating random lockPW", zap.Error(err))
 				}
 
-				//fmt.Printf("# hexctr %s modhexctr %s\n", ctr, modhexctr)
+				// fmt.Printf("# hexctr %s modhexctr %s\n", ctr, modhexctr)
 				fmt.Printf("%d,%s,%s,%s,%s,%s,%s\n", i, modhexctr, internalUID, aesKey, lockPW, time.Now().Format(time.RFC3339), progflags)
 				fmt.Println("# the end")
-
 			}
-
 		})
 	}
 }

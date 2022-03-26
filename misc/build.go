@@ -1,7 +1,7 @@
 package misc
 
 var (
-	Debug   = true
+	Debug   = false
 	Name    = "yubiserv"
 	Prefix  = "YSR"
 	Build   = "now"

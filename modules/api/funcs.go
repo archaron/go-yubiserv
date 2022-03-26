@@ -3,11 +3,13 @@ package api
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/archaron/go-yubiserv/common"
-	"github.com/valyala/fasthttp"
-	"go.uber.org/zap"
 	"strings"
 	"time"
+
+	"github.com/valyala/fasthttp"
+	"go.uber.org/zap"
+
+	"github.com/archaron/go-yubiserv/common"
 )
 
 func (s *Service) paramMissingResponse(ctx *fasthttp.RequestCtx, extra map[string]string) {
@@ -41,7 +43,6 @@ func (s *Service) okResponse(ctx *fasthttp.RequestCtx, extra map[string]string) 
 }
 
 func (s *Service) response(ctx *fasthttp.RequestCtx, status string, apiKey []byte, extra map[string]string) error {
-
 	// Create ordered pieces
 	ordered := make([]string, 0, 5)
 

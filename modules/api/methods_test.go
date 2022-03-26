@@ -3,20 +3,21 @@ package api
 import (
 	"encoding/base64"
 	"encoding/hex"
-	"github.com/archaron/go-yubiserv/common"
-	"github.com/archaron/go-yubiserv/misc"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap/zaptest"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap/zaptest"
+
+	"github.com/archaron/go-yubiserv/common"
+	"github.com/archaron/go-yubiserv/misc"
 )
 
-type testStorage struct {
-}
+type testStorage struct{}
 
 func (s *testStorage) DecryptOTP(publicID, token string) (*common.OTP, error) {
 	if publicID != "cccccccccccb" {
@@ -43,7 +44,6 @@ func (s *testStorage) DecryptOTP(publicID, token string) (*common.OTP, error) {
 }
 
 func TestVerify(t *testing.T) {
-
 	var err error
 
 	apikey, err := base64.StdEncoding.DecodeString("mG5be6ZJU1qBGz24yPh/ESM3UdU=")
@@ -99,5 +99,4 @@ func TestVerify(t *testing.T) {
 		assert.Contains(t, values, "status")
 		assert.Equal(t, "OK", values["status"])
 	})
-
 }

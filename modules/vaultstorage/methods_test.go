@@ -3,10 +3,12 @@ package vaultstorage
 import (
 	"encoding/hex"
 	"errors"
-	"github.com/archaron/go-yubiserv/common"
+	"testing"
+
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
-	"testing"
+
+	"github.com/archaron/go-yubiserv/common"
 )
 
 func TestStorageDecryptor(t *testing.T) {
@@ -16,19 +18,18 @@ func TestStorageDecryptor(t *testing.T) {
 
 	t.Run("should decrypt test OTP", func(t *testing.T) {
 		for k, vector := range common.TestVectors {
-
 			// Test stub
-			svc.getKey = func(publicID string) (*key, error) {
+			svc.getKey = func(publicID string) (*Key, error) {
 				if publicID != "cccccccccccc" {
 					return nil, errors.New("test public id must be cccccccccccc")
 				}
 
-				return &key{
+				return &Key{
 					ID:        1,
 					PublicID:  "cccccccccccc",
 					Created:   "",
 					PrivateID: hex.EncodeToString(vector.PrivateID[:]),
-					AESKey:    hex.EncodeToString(vector.AESKey[:]),
+					AESKey:    hex.EncodeToString(vector.AESKey),
 					LockCode:  "010203040506",
 					Active:    true,
 				}, nil
@@ -43,12 +44,11 @@ func TestStorageDecryptor(t *testing.T) {
 }
 
 func TestStorageDB(t *testing.T) {
-
-	//var err error
-	//svc := Service{
-	//	log: zaptest.NewLogger(t),
-	//	vault: vault.
-	//}
+	// var err error
+	// svc := Service{
+	// 	 log: zaptest.NewLogger(t),
+	//	 vault: vault.
+	// }
 	//
 	//	svc.db, err = sqlx.Open("sqlite3", "file:test.db?cache=shared&mode=memory")
 	//	require.NoError(t, err, "failed to create in-memory database")
@@ -67,7 +67,7 @@ func TestStorageDB(t *testing.T) {
 	//	rand.Seed(uint64(time.Now().UTC().UnixNano()))
 	//
 	//	keyID := rand.Uint64() & 0xFFFFFFFFFFFF
-	//	require.NoError(t, err, "cannot generate random key id")
+	//	require.NoError(t, err, "cannot generate random Key id")
 	//
 	//	privateBuf := make([]byte, 6)
 	//	_, err = rand.Read(privateBuf)
@@ -75,7 +75,7 @@ func TestStorageDB(t *testing.T) {
 	//
 	//	aesBuf := make([]byte, 16)
 	//	_, err = rand.Read(aesBuf)
-	//	require.NoError(t, err, "cannot generate random aes key")
+	//	require.NoError(t, err, "cannot generate random aes Key")
 	//
 	//	lockBuf := make([]byte, 6)
 	//	_, err = rand.Read(lockBuf)
@@ -83,7 +83,7 @@ func TestStorageDB(t *testing.T) {
 	//
 	//	publicID := misc.Hex2modhex(fmt.Sprintf("%012x", keyID))
 	//
-	//	testKey := &key{
+	//	testKey := &Key{
 	//		ID:        keyID,
 	//		PublicID:  publicID,
 	//		PrivateID: hex.EncodeToString(privateBuf),
@@ -93,14 +93,14 @@ func TestStorageDB(t *testing.T) {
 	//		Created:   time.Now().UTC().Format("2006-01-02T15:04:05.000"),
 	//	}
 	//
-	//	t.Run("should create key", func(t *testing.T) {
-	//		require.NoError(t, svc.StoreKey(testKey), "cannot create key in storage")
+	//	t.Run("should create Key", func(t *testing.T) {
+	//		require.NoError(t, svc.StoreKey(testKey), "cannot create Key in storage")
 	//	})
 	//
-	//	t.Run("should receive key", func(t *testing.T) {
-	//		key, err := svc.GetKey(publicID)
-	//		require.NoError(t, err, "cannot get key from storage")
-	//		require.Equal(t, testKey, key)
+	//	t.Run("should receive Key", func(t *testing.T) {
+	//		Key, err := svc.GetKey(publicID)
+	//		require.NoError(t, err, "cannot get Key from storage")
+	//		require.Equal(t, testKey, Key)
 	//	})
 	//
 }

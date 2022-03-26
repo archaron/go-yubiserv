@@ -7,6 +7,7 @@ import (
 	"strings"
 )
 
+// Hex2modhex converts standard hex string to mod-hex format
 func Hex2modhex(hex string) string {
 	hexmod := map[rune]rune{
 		'0': 'c',
@@ -34,9 +35,7 @@ func Hex2modhex(hex string) string {
 	}, hex)
 }
 
-/**
-Dvorak2modhex converts OPT in Dvorak keyboard layout to standard modhex OTP
-*/
+// Dvorak2modhex converts OPT in Dvorak keyboard layout to standard modhex OTP.
 func Dvorak2modhex(dvModHex string) string {
 	hexmod := map[rune]rune{
 		'j': 'c',
@@ -64,6 +63,7 @@ func Dvorak2modhex(dvModHex string) string {
 	}, dvModHex)
 }
 
+// Modhex2hex converts mod-hex OPT to standard hex string.
 func Modhex2hex(modHex string) string {
 	modhex := map[rune]rune{
 		'c': '0',
@@ -91,6 +91,7 @@ func Modhex2hex(modHex string) string {
 	}, modHex)
 }
 
+// Rand generates random bytes
 func Rand(count int) ([]byte, error) {
 	buf := make([]byte, count)
 	if _, err := rand.Read(buf); err != nil {
@@ -100,6 +101,7 @@ func Rand(count int) ([]byte, error) {
 	}
 }
 
+// HexRand generates random hex string
 func HexRand(count int) (string, error) {
 	if buf, err := Rand(count); err != nil {
 		return "", err

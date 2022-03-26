@@ -2,6 +2,8 @@ package templates
 
 import "html/template"
 
+// nolint:gocheckglobals
+// IndexTemplate is HTML template for index page.
 var IndexTemplate, _ = template.New("index").Parse(`
 	<html>
 	<head><title>Test page</title></head>

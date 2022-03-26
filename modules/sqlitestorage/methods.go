@@ -3,10 +3,12 @@ package sqlitestorage
 import (
 	"database/sql"
 	"encoding/hex"
-	"github.com/archaron/go-yubiserv/common"
-	"github.com/archaron/go-yubiserv/misc"
+
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
+
+	"github.com/archaron/go-yubiserv/common"
+	"github.com/archaron/go-yubiserv/misc"
 )
 
 // DecryptOTP Decrypt OTP using stored private AES for specified public identifier
@@ -77,7 +79,6 @@ func (s *Service) GetKey(publicId string) (*key, error) {
 }
 
 func (s *Service) createDatabase() error {
-
 	// Ensure tables are created
 	_, err := s.db.Exec("create table if not exists Keys (" +
 		"public_id varchar(16)," +
@@ -89,14 +90,8 @@ func (s *Service) createDatabase() error {
 		"active boolean default true," +
 		"primary key (public_id)" +
 		")")
-
 	if err != nil {
 		return errors.Wrap(err, "failed to create table")
 	}
 	return nil
 }
-
-//
-//func (s *Service) UpdateCounters(publicId string, usageCounter uint16, sessionCounter uint8) error {
-//	return nil
-//}

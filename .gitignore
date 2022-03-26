@@ -17,3 +17,8 @@ config.yml
 vendor
 bin
 release
+
+role_id
+secret_id
+config.yaml
+*.pem

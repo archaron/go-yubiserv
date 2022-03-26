@@ -3,23 +3,26 @@ package api
 import (
 	"bytes"
 	"crypto/hmac"
+	"crypto/rand"
 	"encoding/base64"
 	"fmt"
-	"github.com/archaron/go-yubiserv/common"
-	"github.com/archaron/go-yubiserv/misc"
-	"github.com/archaron/go-yubiserv/modules/api/templates"
-	"github.com/valyala/fasthttp"
-	"go.uber.org/zap"
 	"io/ioutil"
-	"math/rand"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/valyala/fasthttp"
+	"go.uber.org/zap"
+
+	"github.com/archaron/go-yubiserv/common"
+	"github.com/archaron/go-yubiserv/misc"
+	"github.com/archaron/go-yubiserv/modules/api/templates"
 )
 
 func (s *Service) verify(ctx *fasthttp.RequestCtx) {
+	var err error
 	args := ctx.QueryArgs()
 	extra := make(map[string]string)
 
@@ -67,14 +70,12 @@ func (s *Service) verify(ctx *fasthttp.RequestCtx) {
 
 	// If we have an apiKey to verify signature
 	if len(s.apiKey) > 0 {
-
 		// Check request H field
 		h := string(args.Peek("h"))
 		hLen := len(h)
 
 		// If incoming client signature exists, check it
 		if hLen > 0 {
-
 			hmacSignature, err := base64.StdEncoding.DecodeString(h)
 			if err != nil {
 				log.Error("cannot decode base64 string in H field", zap.String("h", h), zap.Error(err))
@@ -89,16 +90,13 @@ func (s *Service) verify(ctx *fasthttp.RequestCtx) {
 					sm = append(sm, string(key)+"="+string(value))
 				}
 			})
-			//spew.Dump(sm)
+
 			signature := common.SignMap(sm, s.apiKey)
-			log.Debug("HMAC signature", zap.String("signature", common.SignMapToBase64(sm, s.apiKey)))
 			if !hmac.Equal(hmacSignature, signature) {
 				log.Error("bad request HMAC signature detected, rejecting request", zap.Error(err))
 				s.badSignatureResponse(ctx, extra)
 				return
-
 			}
-
 		} else {
 			log.Error("missing signature H field, but have api-secret specified, rejecting request", zap.Error(err))
 			s.paramMissingResponse(ctx, extra)
@@ -112,34 +110,29 @@ func (s *Service) verify(ctx *fasthttp.RequestCtx) {
 		log.Error("invalid OTP format, cannot extract client ID and hash", zap.Error(err))
 		s.badOTPResponse(ctx, extra)
 		return
-
 	}
 
 	extra["otp"] = otp
 	extra["nonce"] = nonce
-	//extra["sl"] = "100"
-	//extra["timestamp"] = strconv.Itoa(int(time.Now().In(s.gmtLocation).Unix()))
-	//extra["sessioncounter"] = "2"
-	//extra["sessionuse"] = "7"
 
-	publicId := matches[0][1]
+	publicID := matches[0][1]
 
-	log = log.With(zap.String("id", publicId))
+	log = log.With(zap.String("id", publicID))
 
 	if s.storage == nil {
 		log.Fatal("storage is nil")
 	}
 
-	otpData, err := s.storage.DecryptOTP(publicId, matches[0][2])
+	otpData, err := s.storage.DecryptOTP(publicID, matches[0][2])
 	if err != nil {
 		log.Error("error decrypting OTP", zap.Error(err))
 		s.badOTPResponse(ctx, extra)
 		return
 	}
 
-	user, ok := s.Users[publicId]
+	user, ok := s.Users[publicID]
 	if !ok {
-		s.Users[publicId] = &common.OTPUser{
+		s.Users[publicID] = &common.OTPUser{
 			UsageCounter:   otpData.UsageCounter,
 			SessionCounter: otpData.SessionCounter,
 			Timestamp:      otpData.TimestampCounter,
@@ -147,7 +140,8 @@ func (s *Service) verify(ctx *fasthttp.RequestCtx) {
 		log.Debug("add new OTP user")
 	} else {
 		log.Debug("existing OTP user", zap.Any("data", user))
-		if (user.UsageCounter > otpData.UsageCounter) || (user.UsageCounter == otpData.UsageCounter && user.SessionCounter >= otpData.SessionCounter) {
+		if (user.UsageCounter > otpData.UsageCounter) ||
+			(user.UsageCounter == otpData.UsageCounter && user.SessionCounter >= otpData.SessionCounter) {
 			log.Warn("saved counters >= OTP decoded counters, rejecting",
 				zap.Uint8("saved_session_counter", user.SessionCounter),
 				zap.Uint8("otp_session_counter", otpData.SessionCounter),
@@ -164,16 +158,11 @@ func (s *Service) verify(ctx *fasthttp.RequestCtx) {
 		user.SessionCounter = otpData.SessionCounter
 	}
 
-	//if err := s.storage.UpdateCounters(publicId, otpData.UsageCounter, otpData.SessionCounter); err != nil {
-	//	log.Error("cannot update counters", zap.Error(err))
-	//}
-
 	log.Debug("otp decoded, access granted",
-		zap.String("public_id", publicId),
+		zap.String("public_id", publicID),
 		zap.String("otp", otpData.String()),
 	)
 
-	// TODO: Check usage counters & etc here!
 	s.okResponse(ctx, extra)
 }
 
@@ -197,6 +186,7 @@ func (s *Service) readiness(ctx *fasthttp.RequestCtx) {
 	})
 }
 
+// TestResponseParams used for report test result.
 type TestResponseParams struct {
 	Result string
 }
@@ -209,14 +199,17 @@ func (s *Service) test(ctx *fasthttp.RequestCtx) {
 
 	otp := string(ctx.QueryArgs().Peek("otp"))
 	if len(otp) > 0 {
-		requestId := fmt.Sprintf("%6d", time.Now().Unix())
-		rand.Seed(time.Now().UnixNano())
+		requestID := fmt.Sprintf("%6d", time.Now().Unix())
+
 		b := make([]byte, 16)
-		rand.Read(b)
+		_, err := rand.Read(b)
+		if err != nil {
+			return
+		}
 		nonce := fmt.Sprintf("%x", b)[:32]
 
 		data := []string{
-			"id=" + requestId,
+			"id=" + requestID,
 			"otp=" + otp,
 			"nonce=" + nonce,
 		}
@@ -224,7 +217,7 @@ func (s *Service) test(ctx *fasthttp.RequestCtx) {
 		signature := common.SignMapToBase64(data, s.apiKey)
 
 		q := url.Values{
-			"id":    []string{requestId},
+			"id":    []string{requestID},
 			"otp":   []string{otp},
 			"nonce": []string{nonce},
 			"h":     []string{signature},
@@ -253,5 +246,4 @@ func (s *Service) test(ctx *fasthttp.RequestCtx) {
 	if err != nil {
 		s.log.Error("error executing test template", zap.Error(err))
 	}
-
 }

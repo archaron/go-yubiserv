@@ -4,14 +4,16 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/archaron/go-yubiserv/common"
-	"github.com/archaron/go-yubiserv/misc"
+	"testing"
+	"time"
+
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 	"golang.org/x/exp/rand"
-	"testing"
-	"time"
+
+	"github.com/archaron/go-yubiserv/common"
+	"github.com/archaron/go-yubiserv/misc"
 )
 
 func TestStorageDecryptor(t *testing.T) {
@@ -33,7 +35,7 @@ func TestStorageDecryptor(t *testing.T) {
 					PublicID:  "cccccccccccc",
 					Created:   "",
 					PrivateID: hex.EncodeToString(vector.PrivateID[:]),
-					AESKey:    hex.EncodeToString(vector.AESKey[:]),
+					AESKey:    hex.EncodeToString(vector.AESKey),
 					LockCode:  "010203040506",
 					Active:    true,
 				}, nil
@@ -105,5 +107,4 @@ func TestStorageDB(t *testing.T) {
 		require.NoError(t, err, "cannot get key from storage")
 		require.Equal(t, testKey, key)
 	})
-
 }

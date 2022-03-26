@@ -2,22 +2,25 @@ package vaultstorage
 
 import (
 	"errors"
-	"github.com/im-kulikov/helium/module"
 	"io/ioutil"
+
+	"github.com/im-kulikov/helium/module"
 )
 
 // Module storage constructor
+// nolint:gochecknoglobals
 var Module = module.Module{
 	{Constructor: newService},
 }
 
 func newService(p serviceParams) (serviceOutParams, error) {
 	svc := &Service{
-		log:     p.Logger,
-		address: p.Config.GetString("vault.address"),
+		log:       p.Logger,
+		address:   p.Config.GetString("vault.address"),
+		vaultPath: p.Config.GetString("vault.path"),
 	}
 
-	// Default key fetcher
+	// Default Key fetcher
 	svc.getKey = svc.GetKey
 
 	roleFile := p.Config.GetString("vault.role_file")
@@ -30,7 +33,7 @@ func newService(p serviceParams) (serviceOutParams, error) {
 		return serviceOutParams{}, errors.New("invalid role_id length")
 	}
 
-	svc.roleId = string(rawRole)
+	svc.roleID = string(rawRole)
 
 	secretFile := p.Config.GetString("vault.secret_file")
 	rawSecret, err := ioutil.ReadFile(secretFile)
@@ -42,7 +45,7 @@ func newService(p serviceParams) (serviceOutParams, error) {
 		return serviceOutParams{}, errors.New("invalid secret_id length")
 	}
 
-	svc.secretId = string(rawSecret)
+	svc.secretID = string(rawSecret)
 
 	return serviceOutParams{
 		Service: svc,

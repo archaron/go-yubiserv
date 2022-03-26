@@ -3,21 +3,23 @@ package api
 import (
 	"encoding/base64"
 	"errors"
-	"github.com/archaron/go-yubiserv/common"
+
 	"github.com/im-kulikov/helium/module"
 	"github.com/im-kulikov/helium/service"
 	"github.com/spf13/viper"
 	"github.com/urfave/cli/v2"
 	"go.uber.org/dig"
+
+	"github.com/archaron/go-yubiserv/common"
 )
 
 // Module api constructor
+// nolint:gochecknoglobals
 var Module = module.Module{
 	{Constructor: newAPIService, Options: []dig.ProvideOption{dig.Group("services")}},
 }
 
 func newAPIService(p serviceParams) (service.Service, error) {
-
 	var (
 		apiKey []byte
 		err    error
@@ -51,6 +53,7 @@ func newAPIService(p serviceParams) (service.Service, error) {
 	return svc, nil
 }
 
+// Defaults for storage service.
 func Defaults(ctx *cli.Context, v *viper.Viper) error {
 	// api:
 	v.SetDefault("api.address", ctx.String("api-address"))

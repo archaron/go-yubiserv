@@ -5,13 +5,15 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+
+	"github.com/hashicorp/vault/api"
+	"go.uber.org/zap"
+
 	"github.com/archaron/go-yubiserv/common"
 	"github.com/archaron/go-yubiserv/misc"
-	"github.com/davecgh/go-spew/spew"
-	"go.uber.org/zap"
 )
 
-// DecryptOTP Decrypt OTP using stored private AES for specified public identifier
+// DecryptOTP Decrypt OTP using stored private AES for specified public identifier.
 func (s *Service) DecryptOTP(publicID, token string) (*common.OTP, error) {
 	log := s.log.With(
 		zap.String("public_id", publicID),
@@ -48,14 +50,18 @@ func (s *Service) DecryptOTP(publicID, token string) (*common.OTP, error) {
 	}
 
 	if hex.EncodeToString(otp.PrivateID[:]) != key.PrivateID {
-		log.Error("private ID mismatch", zap.String("opt_private_id", hex.EncodeToString(otp.PrivateID[:])), zap.String("key_private_id", key.PrivateID))
+		log.Error("private ID mismatch",
+			zap.String("opt_private_id", hex.EncodeToString(otp.PrivateID[:])),
+			zap.String("key_private_id", key.PrivateID),
+		)
 		return nil, common.ErrStorageDecryptFail
 	}
 
 	return otp, err
 }
 
-func (s *Service) StoreKey(k *key) error {
+// StoreKey in vault storage.
+func (s *Service) StoreKey(k *Key) error {
 	path := fmt.Sprintf("secret/data/puppet/service/yubiserv/%s", k.PublicID)
 
 	data := make(map[string]interface{})
@@ -65,27 +71,39 @@ func (s *Service) StoreKey(k *key) error {
 		data["private_id"] = k.PrivateID
 	}
 
-	secret, err := s.vault.Logical().Write(path, data)
+	_, err := s.vault.Logical().Write(path, data)
 	if err != nil {
 		return err
 	}
 
-	spew.Dump(secret)
 	return nil
 }
 
-func (s *Service) GetKey(publicId string) (*key, error) {
-
-	path := fmt.Sprintf("secret/data/puppet/service/yubiserv/%s", publicId)
+// GetKey gets Key from storage by public id.
+func (s *Service) GetKey(publicID string) (*Key, error) {
+	path := fmt.Sprintf("%s/%s", s.vaultPath, publicID)
 
 	secret, err := s.vault.Logical().Read(path)
 	if err != nil {
-		return nil, err
+		if re, ok := err.(*api.ResponseError); !ok {
+			return nil, err
+		} else if re.StatusCode == 403 {
+			s.log.Info("vault reports access denied, token expired, will relogin", zap.Error(err))
+			if err = s.login(); err != nil {
+				return nil, err
+			}
+
+			// retry request
+			secret, err = s.vault.Logical().Read(path)
+			if err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	if secret == nil {
 		s.log.Warn("public_id not found in vault storage", zap.String("path", path))
-		return nil, errors.New("key not found")
+		return nil, errors.New("Key not found")
 	}
 
 	data, ok := secret.Data["data"].(map[string]interface{})
@@ -96,45 +114,21 @@ func (s *Service) GetKey(publicId string) (*key, error) {
 	var aesKey string
 	if aesKey, ok = data["aes_key"].(string); !ok {
 		s.log.Warn("aes_key not found in vault storage", zap.String("path", path))
-		return nil, errors.New("key secret not found")
+		return nil, errors.New("Key secret not found")
 	}
 
-	var privateId string
-	if privateId, ok = data["private_id"].(string); !ok {
-		privateId = ""
+	var privateID string
+	if privateID, ok = data["private_id"].(string); !ok {
+		privateID = ""
 	}
 
-	s.log.Debug("secret loaded", zap.String("aes_key", aesKey))
-	return &key{
+	return &Key{
 		ID:        0,
-		PublicID:  publicId,
+		PublicID:  publicID,
 		Created:   "",
-		PrivateID: privateId,
+		PrivateID: privateID,
 		AESKey:    aesKey,
 		LockCode:  "",
 		Active:    true,
 	}, nil
-
 }
-
-//
-//func (s *Service) UpdateCounters(publicId string, usageCounter uint16, sessionCounter uint8) error {
-//	log := s.log.With(
-//		zap.String("public_id", publicId),
-//	)
-//	path := fmt.Sprintf("secret/data/puppet/service/yubiserv/%s", publicId)
-//
-//	secret, err := s.vault.Logical().JSONMergePatch(path, map[string]interface{}{
-//		"usage_counter":   usageCounter,
-//		"session_counter": sessionCounter,
-//	})
-//
-//	spew.Dump(secret)
-//
-//	if err != nil {
-//		log.Warn("cannot update counters in vault")
-//		return err
-//	}
-//
-//	return nil
-//}

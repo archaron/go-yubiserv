@@ -3,14 +3,17 @@ package api
 import (
 	"context"
 	"fmt"
-	"github.com/archaron/go-yubiserv/common"
+	"time"
+
 	"github.com/coreos/go-systemd/daemon"
 	"github.com/im-kulikov/helium/settings"
 	"github.com/spf13/viper"
 	"github.com/valyala/fasthttp"
 	"go.uber.org/dig"
 	"go.uber.org/zap"
-	"time"
+
+	"github.com/archaron/go-yubiserv/common"
+	"github.com/archaron/go-yubiserv/misc"
 )
 
 type (
@@ -23,6 +26,7 @@ type (
 		Storage  common.StorageInterface
 	}
 
+	// Service represents API service.
 	Service struct {
 		log         *zap.Logger
 		address     string
@@ -43,10 +47,14 @@ type (
 	}
 )
 
+// Printf function for HTTP debug log.
 func (s *Service) Printf(format string, args ...interface{}) {
-	s.log.Warn(fmt.Sprintf(format, args))
+	if misc.Debug {
+		s.log.Warn(fmt.Sprintf(format, args...))
+	}
 }
 
+// Start API service.
 func (s *Service) Start(ctx context.Context) error {
 	s.ctx, s.cancel = context.WithCancel(ctx)
 	var err error
@@ -62,7 +70,7 @@ func (s *Service) Start(ctx context.Context) error {
 		return err
 	}
 
-	if false && s.cert != "" && s.key != "" {
+	if s.cert != "" && s.key != "" {
 		s.log.Debug("listen in secured TLS mode")
 		go func() {
 			if err = s.listener.ListenAndServeTLS(s.address, s.cert, s.key); err != nil {
@@ -89,6 +97,7 @@ func (s *Service) Start(ctx context.Context) error {
 	return s.ctx.Err()
 }
 
+// Stop API service.
 func (s *Service) Stop(ctx context.Context) {
 	defer s.cancel()
 	// Notify systemd app is stopping
@@ -100,15 +109,14 @@ func (s *Service) Stop(ctx context.Context) {
 		s.log.Info("api.stop")
 		_ = s.listener.Shutdown()
 	}
-
 }
 
+// Name of the API service.
 func (s *Service) Name() string {
 	return "api"
 }
 
 func (s *Service) requestHandler(ctx *fasthttp.RequestCtx) {
-
 	switch string(ctx.Path()) {
 	case "/wsapi/2.0/verify":
 		s.verify(ctx)
@@ -131,11 +139,10 @@ func (s *Service) requestHandler(ctx *fasthttp.RequestCtx) {
 		ctx.Error("Unsupported path", fasthttp.StatusNotFound)
 		return
 	}
-
 }
 
+// Watchdog for systemd keepalive responses.
 func (s *Service) Watchdog(ctx context.Context) {
-
 	go func(ctx context.Context) {
 		interval, err := daemon.SdWatchdogEnabled(false)
 		if err != nil || interval == 0 {
