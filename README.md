@@ -5,22 +5,24 @@ Service for Yubikey local validation. Supports SQLite and Hashicorp Valut keysto
 
 ## Command line parameters and environment variables 
 
-| Command line arg          | Environment variable            | Default value          | Description                                                                   |
-|---------------------------|---------------------------------|------------------------|-------------------------------------------------------------------------------|
-| --config value, -c value  | YSR_CONFIG                      | config.yaml            | Configuration file name                                                       |
-| --debug, -d               | YSR_DEBUG                       | false                  | Enable debug log messages                                                     |
-| --log-format              | YSR_LOGGER_FORMAT               | console                | Log format: console/json                                                      |
-| --api-address value       | YSR_API_ADDRESS                 | :8433                  | Validation API bind address                                                   |
-| --api-timeout value       | YSR_API_TIMEOUT                 | 1s                     | Validation API connect/read timeout                                           |
-| --api-secret value        | YSR_API_SECRET                  |                        | Base64-encoded string for HMAC signature verification, empty to disable check |
-| --api-tls-cert value      | YSR_TLS_CERT                    |                        | Validation API TLS certificate file path. If empty, will use HTTP mode        |
-| --api-tls-key value       | YSR_TLS_KEY                     |                        | Validation API TLS private key file path. If empty, will use HTTP mode        |
-| --keystore value          | YSR_KEYSTORE                    | vault                  | Key store: vault/sqlite                                                       |
-| --sqlite-dbpath value     | YSR_SQLITE_DBPATH               | yubiserv.db            | SQLite3 database path                                                         |
-| --vault-address value     | YSR_VAULT_ADDRESS               | https://127.0.0.1:8200 | Vault server address                                                          |
-| --vault-role-file value   | YSR_VAULT_ROLE_FILE             | role_id                | Path to file containing role_id for Vault auth                                |
-| --vault-secret-file value | YSR_VAULT_SECRET_FILE           | secret_id              | Path to file containing secret_id for Vault auth                              |
-| --vault-path              | Vault path to KV secrets store  | secret/data/yubiserv   | Vault path to KV secrets store                                                |
+| Command line arg          | Environment variable  | Default value          | Description                                                                   |
+|---------------------------|-----------------------|------------------------|-------------------------------------------------------------------------------|
+| --config value, -c value  | YSR_CONFIG            | config.yaml            | Configuration file name                                                       |
+| --debug, -d               | YSR_DEBUG             | false                  | Enable debug log messages                                                     |
+| --log-format              | YSR_LOGGER_FORMAT     | console                | Log format: console/json                                                      |
+| --api-address value       | YSR_API_ADDRESS       | :8433                  | Validation API bind address                                                   |
+| --api-timeout value       | YSR_API_TIMEOUT       | 1s                     | Validation API connect/read timeout                                           |
+| --api-secret value        | YSR_API_SECRET        |                        | Base64-encoded string for HMAC signature verification, empty to disable check |
+| --api-tls-cert value      | YSR_TLS_CERT          |                        | Validation API TLS certificate file path. If empty, will use HTTP mode        |
+| --api-tls-key value       | YSR_TLS_KEY           |                        | Validation API TLS private key file path. If empty, will use HTTP mode        |
+| --keystore value          | YSR_KEYSTORE          | vault                  | Key store: vault/sqlite                                                       |
+| --sqlite-dbpath value     | YSR_SQLITE_DBPATH     | yubiserv.db            | SQLite3 database path                                                         |
+| --vault-address value     | YSR_VAULT_ADDRESS     | https://127.0.0.1:8200 | Vault server address                                                          |
+| --vault-role-id value     | YSR_VAULT_ROLE_ID     |                        | role_id for Vault auth, overrides role-file                                   |
+| --vault-role-file value   | YSR_VAULT_ROLE_FILE   | role_id                | Path to file containing role_id for Vault auth                                |
+| --vault-secret-id value   | YSR_VAULT_SECRET_ID   |                        | secret_id for Vault auth, overrides secret-id                                 |
+| --vault-secret-file value | YSR_VAULT_SECRET_FILE | secret_id              | Path to file containing secret_id for Vault auth                              |
+| --vault-path              | YSR_VAULT_PATH        | secret/data/yubiserv   | Vault path to KV secrets store                                                |
 
 ## Vault key store details
 All secrets are kept in vault KV storage:
