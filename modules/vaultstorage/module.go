@@ -23,29 +23,33 @@ func newService(p serviceParams) (serviceOutParams, error) {
 	// Default Key fetcher
 	svc.getKey = svc.GetKey
 
-	roleFile := p.Config.GetString("vault.role_file")
-	rawRole, err := ioutil.ReadFile(roleFile)
-	if err != nil {
-		return serviceOutParams{}, err
+	if svc.roleID = p.Config.GetString("vault.role_id"); svc.roleID == "" {
+		roleFile := p.Config.GetString("vault.role_file")
+		rawRole, err := ioutil.ReadFile(roleFile)
+		if err != nil {
+			return serviceOutParams{}, err
+		}
+
+		if len(rawRole) != 36 {
+			return serviceOutParams{}, errors.New("invalid role_id length")
+		}
+
+		svc.roleID = string(rawRole)
 	}
 
-	if len(rawRole) != 36 {
-		return serviceOutParams{}, errors.New("invalid role_id length")
+	if svc.secretID = p.Config.GetString("vault.secret_id"); svc.secretID == "" {
+		secretFile := p.Config.GetString("vault.secret_file")
+		rawSecret, err := ioutil.ReadFile(secretFile)
+		if err != nil {
+			return serviceOutParams{}, err
+		}
+
+		if len(rawSecret) != 36 {
+			return serviceOutParams{}, errors.New("invalid secret_id length")
+		}
+
+		svc.secretID = string(rawSecret)
 	}
-
-	svc.roleID = string(rawRole)
-
-	secretFile := p.Config.GetString("vault.secret_file")
-	rawSecret, err := ioutil.ReadFile(secretFile)
-	if err != nil {
-		return serviceOutParams{}, err
-	}
-
-	if len(rawSecret) != 36 {
-		return serviceOutParams{}, errors.New("invalid secret_id length")
-	}
-
-	svc.secretID = string(rawSecret)
 
 	return serviceOutParams{
 		Service: svc,

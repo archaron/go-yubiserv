@@ -143,5 +143,8 @@ func Defaults(ctx *cli.Context, v *viper.Viper) error {
 	v.SetDefault("vault.address", ctx.String("vault-address"))
 	v.SetDefault("vault.role_file", ctx.String("vault-role-file"))
 	v.SetDefault("vault.secret_file", ctx.String("vault-secret-file"))
+	v.SetDefault("vault.role_id", ctx.String("vault-role-id"))
+	v.SetDefault("vault.secret_id", ctx.String("vault-secret-id"))
+
 	return nil
 }
