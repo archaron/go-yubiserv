@@ -3,7 +3,8 @@ package sqlitestorage
 import (
 	"context"
 	"fmt"
-	"github.com/archaron/go-yubiserv/common"
+	"sync"
+
 	"github.com/im-kulikov/helium/service"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/mattn/go-sqlite3"
@@ -12,7 +13,8 @@ import (
 	"github.com/urfave/cli/v2"
 	"go.uber.org/dig"
 	"go.uber.org/zap"
-	"sync"
+
+	"github.com/archaron/go-yubiserv/common"
 )
 
 type (
@@ -40,7 +42,6 @@ type (
 )
 
 func (s *Service) Start(ctx context.Context) error {
-
 	var err error
 	s.log.Debug("keys storage start", zap.String("db_path", s.dbPath))
 
@@ -64,7 +65,6 @@ func (s *Service) Start(ctx context.Context) error {
 }
 
 func (s *Service) Stop(ctx context.Context) {
-
 	if s.db != nil {
 		_ = s.db.Close()
 	}

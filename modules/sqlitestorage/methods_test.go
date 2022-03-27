@@ -23,7 +23,6 @@ func TestStorageDecryptor(t *testing.T) {
 
 	t.Run("should decrypt test OTP", func(t *testing.T) {
 		for k, vector := range common.TestVectors {
-
 			// Test stub
 			svc.getKey = func(publicID string) (*key, error) {
 				if publicID != "cccccccccccc" {
