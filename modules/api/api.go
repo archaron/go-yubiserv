@@ -71,7 +71,7 @@ func (s *Service) Start(ctx context.Context) error {
 	}
 
 	if s.cert != "" && s.key != "" {
-		s.log.Debug("listen in secured TLS mode")
+		s.log.Debug("listen in secured TLS mode", zap.String("address", s.address))
 		go func() {
 			if err = s.listener.ListenAndServeTLS(s.address, s.cert, s.key); err != nil {
 				s.log.Fatal("api tls listen error", zap.Error(err))
