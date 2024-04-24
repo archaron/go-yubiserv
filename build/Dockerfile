@@ -1,7 +1,5 @@
-FROM ubuntu:latest
+FROM golang:1.22-bookworm
 LABEL maintainer="Alexander Tischenko (tsm@fiberside.ru)"
-
-
 
 VOLUME /src
 ENV BUILD_DIR="/src"
@@ -10,16 +8,14 @@ ENV UNITDIR="/usr/lib/systemd/system/"
 
 RUN set -x \
   && apt update \
-  && DEBIAN_FRONTEND="noninteractive" apt install -y wget ca-certificates upx git make ruby-dev build-essential \
-  && mkdir temp \
-  && cd temp \
-  && wget https://dl.google.com/go/go1.20.linux-amd64.tar.gz \
-  && tar -xvf go1.20.linux-amd64.tar.gz \
-  && mv go /usr/local \
-  && export GOROOT=/usr/local/go \
-  && export GOPATH=$HOME/go \
-  && export PATH=$GOPATH/bin:$GOROOT/bin:$PATH \
-  && gem install fpm
+  && DEBIAN_FRONTEND="noninteractive" apt install -y wget ca-certificates git make ruby-dev build-essential
+
+RUN  cd /tmp \
+  && wget https://github.com/upx/upx/releases/download/v4.2.3/upx-4.2.3-amd64_linux.tar.xz \
+  && tar -xf upx-4.2.3-amd64_linux.tar.xz
+RUN cp /tmp/upx-4.2.3-amd64_linux/upx /sbin \
+    && chmod +x /sbin/upx
+RUN gem install fpm
 
 WORKDIR /src
 
