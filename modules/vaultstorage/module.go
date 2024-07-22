@@ -2,7 +2,7 @@ package vaultstorage
 
 import (
 	"errors"
-	"io/ioutil"
+	"os"
 
 	"github.com/im-kulikov/helium/module"
 )
@@ -25,7 +25,7 @@ func newService(p serviceParams) (serviceOutParams, error) {
 
 	if svc.roleID = p.Config.GetString("vault.role_id"); svc.roleID == "" {
 		roleFile := p.Config.GetString("vault.role_file")
-		rawRole, err := ioutil.ReadFile(roleFile)
+		rawRole, err := os.ReadFile(roleFile)
 		if err != nil {
 			return serviceOutParams{}, err
 		}
@@ -39,7 +39,7 @@ func newService(p serviceParams) (serviceOutParams, error) {
 
 	if svc.secretID = p.Config.GetString("vault.secret_id"); svc.secretID == "" {
 		secretFile := p.Config.GetString("vault.secret_file")
-		rawSecret, err := ioutil.ReadFile(secretFile)
+		rawSecret, err := os.ReadFile(secretFile)
 		if err != nil {
 			return serviceOutParams{}, err
 		}
