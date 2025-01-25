@@ -78,7 +78,7 @@ func (s *Service) Start(ctx context.Context) error {
 			}
 		}()
 	} else {
-		s.log.Debug("listen in unsecured HTTP mode")
+		s.log.Debug("listen in unsecured HTTP mode", zap.String("address", s.address))
 		go func() {
 			if err = s.listener.ListenAndServe(s.address); err != nil {
 				s.log.Fatal("api listen error", zap.Error(err))
