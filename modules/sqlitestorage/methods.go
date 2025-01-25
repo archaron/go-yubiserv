@@ -35,7 +35,7 @@ func (s *Service) DecryptOTP(publicID, token string) (*common.OTP, error) {
 		return nil, err
 	}
 
-	binToken, err := hex.DecodeString(misc.Modhex2hex(token))
+	binToken, err := hex.DecodeString(misc.ModHexToHex(token))
 	if err != nil {
 		return nil, err
 	}

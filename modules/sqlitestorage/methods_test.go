@@ -85,7 +85,7 @@ func TestStorageDB(t *testing.T) {
 	_, err = rand.Read(lockBuf)
 	require.NoError(t, err, "cannot generate random lock code")
 
-	publicID := misc.Hex2modhex(fmt.Sprintf("%012x", keyID))
+	publicID := misc.HexToModHex(fmt.Sprintf("%012x", keyID))
 
 	testKey := &key{
 		ID:        keyID,

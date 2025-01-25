@@ -7,8 +7,8 @@ import (
 	"strings"
 )
 
-// Hex2modhex converts standard hex string to mod-hex format
-func Hex2modhex(hex string) string {
+// HexToModHex converts standard hex string to mod-hex format.
+func HexToModHex(hex string) string {
 	hexmod := map[rune]rune{
 		'0': 'c',
 		'1': 'b',
@@ -35,9 +35,9 @@ func Hex2modhex(hex string) string {
 	}, hex)
 }
 
-// Dvorak2modhex converts OPT in Dvorak keyboard layout to standard modhex OTP.
-func Dvorak2modhex(dvModHex string) string {
-	hexmod := map[rune]rune{
+// DvorakToModHex converts OPT in Dvorak keyboard layout to standard modhex OTP.
+func DvorakToModHex(dvModHex string) string {
+	var d2modhex = map[rune]rune{ //nolint:gochecknoglobals
 		'j': 'c',
 		'x': 'b',
 		'e': 'd',
@@ -56,15 +56,43 @@ func Dvorak2modhex(dvModHex string) string {
 		'k': 'v',
 	}
 	return strings.Map(func(r rune) rune {
-		if c, ok := hexmod[r]; ok {
+		if c, ok := d2modhex[r]; ok {
 			return c
 		}
 		return 0
 	}, dvModHex)
 }
 
-// Modhex2hex converts mod-hex OPT to standard hex string.
-func Modhex2hex(modHex string) string {
+// ModHexToDvorak converts OPT in Modhex to Dvorak keyboard layout OTP.
+func ModHexToDvorak(dvModHex string) string {
+	var modhex2d = map[rune]rune{ //nolint:gochecknoglobals
+		'c': 'j',
+		'b': 'x',
+		'd': 'e',
+		'e': '.',
+		'f': 'u',
+		'g': 'i',
+		'h': 'd',
+		'i': 'c',
+		'j': 'h',
+		'k': 't',
+		'l': 'n',
+		'n': 'b',
+		'r': 'p',
+		't': 'y',
+		'u': 'g',
+		'v': 'k',
+	}
+	return strings.Map(func(r rune) rune {
+		if c, ok := modhex2d[r]; ok {
+			return c
+		}
+		return 0
+	}, dvModHex)
+}
+
+// ModHexToHex converts mod-hex OPT to standard hex string.
+func ModHexToHex(modHex string) string {
 	modhex := map[rune]rune{
 		'c': '0',
 		'b': '1',
@@ -91,36 +119,36 @@ func Modhex2hex(modHex string) string {
 	}, modHex)
 }
 
-// Rand generates random bytes
+// Rand generates random bytes.
 func Rand(count int) ([]byte, error) {
 	buf := make([]byte, count)
+
 	if _, err := rand.Read(buf); err != nil {
 		return nil, err
-	} else {
-		return buf, nil
 	}
+	return buf, nil
 }
 
-// HexRand generates random hex string
+// HexRand generates random hex string.
 func HexRand(count int) (string, error) {
-	if buf, err := Rand(count); err != nil {
+	buf, err := Rand(count)
+	if err != nil {
 		return "", err
-	} else {
-		return hex.EncodeToString(buf), nil
 	}
+	return hex.EncodeToString(buf), nil
 }
 
-// IsModhex checks, if given string is in modhex encoding
-func IsModhex(s string) bool {
+// IsModHex checks, if given string is in modhex encoding.
+func IsModHex(s string) bool {
 	return regexp.MustCompile(`(?m)^[cbdefghijklnrtuv]+$`).MatchString(s)
 }
 
-// IsDvorakModhex checks, if given string is in Dvorak layout modhex encoding
-func IsDvorakModhex(s string) bool {
+// IsDvorakModHex checks, if given string is in Dvorak layout modhex encoding.
+func IsDvorakModHex(s string) bool {
 	return regexp.MustCompile(`(?m)^[jxe.uidchtnbpygk]+$`).MatchString(s)
 }
 
-// IsAlphanum checks, if given string is alphanumeric
-func IsAlphanum(s string) bool {
+// IsAlphaNum checks, if given string is alphanumeric.
+func IsAlphaNum(s string) bool {
 	return regexp.MustCompile(`(?m)^[a-zA-Z0-9]+$`).MatchString(s)
 }

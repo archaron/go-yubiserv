@@ -2,8 +2,9 @@ package common
 
 import (
 	"encoding/base64"
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestHMACSign(t *testing.T) {

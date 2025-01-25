@@ -36,6 +36,12 @@ func (s *Service) badSignatureResponse(ctx *fasthttp.RequestCtx, extra map[strin
 	}
 }
 
+func (s *Service) backendErrorResponse(ctx *fasthttp.RequestCtx, extra map[string]string) {
+	if err := s.response(ctx, ResponseCodeBackendError, s.apiKey, extra); err != nil {
+		s.log.Error("error sending backend error response", zap.Error(err))
+	}
+}
+
 func (s *Service) okResponse(ctx *fasthttp.RequestCtx, extra map[string]string) {
 	if err := s.response(ctx, ResponseCodeOK, s.apiKey, extra); err != nil {
 		s.log.Error("error sending OK response", zap.Error(err))
@@ -48,10 +54,8 @@ func (s *Service) response(ctx *fasthttp.RequestCtx, status string, apiKey []byt
 
 	ordered = append(ordered, "t="+strings.ReplaceAll(time.Now().In(s.gmtLocation).Format("2006-01-02T15:04:05Z0.000"), ".", ""))
 
-	if extra != nil {
-		for n := range extra {
-			ordered = append(ordered, n+"="+extra[n])
-		}
+	for n := range extra {
+		ordered = append(ordered, n+"="+extra[n])
 	}
 
 	ordered = append(ordered, "status="+status)

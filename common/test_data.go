@@ -1,11 +1,13 @@
 package common
 
-type TestVector struct {
+type testVector struct {
 	AESKey []byte
+	Text   string
 	OTP
 }
 
-var TestVectors = map[string]TestVector{
+// TestVectors for OTP testing.
+var TestVectors = map[string]testVector{ //nolint:gochecknoglobals
 	"dvgtiblfkbgturecfllberrvkinnctnn": {
 		AESKey: []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f},
 		OTP: OTP{
@@ -15,6 +17,7 @@ var TestVectors = map[string]TestVector{
 			SessionCounter:   1,
 			CRC:              0xfe36,
 		},
+		Text: "OTP: PrivateID: 010203040506, Usage counter: 0001, Session counter: 01, Timestamp couner: 010001, Random: 0000, CRC: fe36",
 	},
 	"rnibcnfhdninbrdebccrndfhjgnhftee": {
 		AESKey: []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f},
@@ -25,6 +28,7 @@ var TestVectors = map[string]TestVector{
 			SessionCounter:   2,
 			CRC:              0x1152,
 		},
+		Text: "OTP: PrivateID: 010203040506, Usage counter: 0001, Session counter: 02, Timestamp couner: 010001, Random: 0000, CRC: 1152",
 	},
 	"iikkijbdknrrdhfdrjltvgrbkkjblcbh": {
 		AESKey: []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f},
@@ -35,6 +39,7 @@ var TestVectors = map[string]TestVector{
 			SessionCounter:   1,
 			CRC:              0x9454,
 		},
+		Text: "OTP: PrivateID: 010203040506, Usage counter: 0fff, Session counter: 01, Timestamp couner: 010001, Random: 0000, CRC: 9454",
 	},
 	"dcihgvrhjeucvrinhdfddbjhfjftjdei": {
 		AESKey: []byte{0x88, 0x88, 0x88, 0x88, 0x88, 0x88, 0x88, 0x88, 0x88, 0x88, 0x88, 0x88, 0x88, 0x88, 0x88, 0x88},
@@ -46,6 +51,7 @@ var TestVectors = map[string]TestVector{
 			Random:           0x8888,
 			CRC:              0xd3b6,
 		},
+		Text: "OTP: PrivateID: 888888888888, Usage counter: 8888, Session counter: 88, Timestamp couner: 888888, Random: 8888, CRC: d3b6",
 	},
 	"kkkncjnvcnenkjvjgncjihljiibgbhbh": {
 		AESKey: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
@@ -54,6 +60,7 @@ var TestVectors = map[string]TestVector{
 			TimestampCounter: [3]byte{0x00, 0x00, 0x00},
 			CRC:              0xa96a,
 		},
+		Text: "OTP: PrivateID: 000000000000, Usage counter: 0000, Session counter: 00, Timestamp couner: 000000, Random: 0000, CRC: a96a",
 	},
 	"iucvrkjiegbhidrcicvlgrcgkgurhjnj": {
 		AESKey: []byte{0xc4, 0x42, 0x28, 0x90, 0x65, 0x30, 0x76, 0xcd, 0xe7, 0x3d, 0x44, 0x9b, 0x19, 0x1b, 0x41, 0x6a},
@@ -64,5 +71,6 @@ var TestVectors = map[string]TestVector{
 			Random:           0xc63c,
 			CRC:              0x1c86,
 		},
+		Text: "OTP: PrivateID: 33c69e7f249e, Usage counter: 0001, Session counter: 00, Timestamp couner: 2413a7, Random: c63c, CRC: 1c86",
 	},
 }

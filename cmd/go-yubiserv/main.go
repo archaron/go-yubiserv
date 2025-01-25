@@ -227,7 +227,7 @@ func generator() cli.ActionFunc {
 
 			for i := start; i <= count; i++ {
 				ctr := fmt.Sprintf("%012x", i)
-				modhexctr := misc.Hex2modhex(ctr)
+				modhexctr := misc.HexToModHex(ctr)
 				internalUID, err := misc.HexRand(6)
 				if err != nil {
 					log.Fatal("error generating random", zap.Error(err))

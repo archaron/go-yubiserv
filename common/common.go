@@ -1,22 +1,23 @@
+// Package common - Common functions and types
 package common
 
 import (
 	"context"
 	"crypto/hmac"
-	"crypto/sha1"
+	"crypto/sha1" //nolint:gosec
 	"encoding/base64"
 	"fmt"
-	"github.com/valyala/fasthttp"
-	"github.com/valyala/fasthttp/fasthttputil"
 	"net"
 	"net/http"
 	"sort"
 	"strings"
+
+	"github.com/valyala/fasthttp"
+	"github.com/valyala/fasthttp/fasthttputil"
 )
 
-/** SignMap - signs specified strings slice with given apiKey
-@return []byte Raw HMAC signature
-*/
+// SignMap - signs specified strings slice with given apiKey.
+// @return []byte Raw HMAC signature
 func SignMap(m []string, apiKey []byte) []byte {
 	mc := make([]string, len(m))
 	copy(mc, m)
@@ -27,14 +28,13 @@ func SignMap(m []string, apiKey []byte) []byte {
 	return h.Sum(nil)
 }
 
-/** SignMapToBase64 - signs specified strings slice with given apiKey
-@return []byte Base64-encoded HMAC signature
-*/
+// SignMapToBase64 - signs specified strings slice with given apiKey.
+// @return []byte Base64-encoded HMAC signature
 func SignMapToBase64(m []string, apiKey []byte) string {
 	return base64.StdEncoding.EncodeToString(SignMap(m, apiKey))
 }
 
-// Serve serves http request using provided fasthttp handler
+// Serve serves http request using provided fasthttp handler.
 func Serve(handler fasthttp.RequestHandler, req *http.Request) (*http.Response, error) {
 	ln := fasthttputil.NewInmemoryListener()
 	defer func() {
@@ -50,7 +50,7 @@ func Serve(handler fasthttp.RequestHandler, req *http.Request) (*http.Response, 
 
 	client := http.Client{
 		Transport: &http.Transport{
-			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
 				return ln.Dial()
 			},
 		},

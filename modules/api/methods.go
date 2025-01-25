@@ -6,7 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -22,7 +22,13 @@ import (
 )
 
 func (s *Service) verify(ctx *fasthttp.RequestCtx) {
-	var err error
+
+	if s.storage == nil {
+		s.log.Error("storage is nil, cannot verify OTP")
+		s.backendErrorResponse(ctx, nil)
+		return
+	}
+
 	args := ctx.QueryArgs()
 	extra := make(map[string]string)
 
@@ -33,8 +39,7 @@ func (s *Service) verify(ctx *fasthttp.RequestCtx) {
 	)
 
 	// Check request user id
-	id, err := args.GetUint("id")
-	if err != nil || id < 1 {
+	if id, err := args.GetUint("id"); err != nil || id < 1 {
 		log.Error("field ID has wrong format", zap.Int("id", id), zap.Error(err))
 		s.paramMissingResponse(ctx, extra)
 		return
@@ -47,23 +52,21 @@ func (s *Service) verify(ctx *fasthttp.RequestCtx) {
 	otp = strings.ToLower(otp)
 
 	// Check for Dvorak layout and fix it
-	if misc.IsDvorakModhex(otp) {
-		otp = misc.Dvorak2modhex(otp)
+	if misc.IsDvorakModHex(otp) {
+		otp = misc.DvorakToModHex(otp)
 	}
 
-	otpLen := len(otp)
-	if otpLen < common.OTPMinLength || otpLen > common.OTPMaxLength || !misc.IsModhex(otp) {
-		log.Error("field OTP is not a valid OTP", zap.String("otp", otp), zap.Int("otp_len", otpLen), zap.Error(err))
+	if otpLen := len(otp); otpLen < common.OTPMinLength || otpLen > common.OTPMaxLength || !misc.IsModHex(otp) {
+		log.Error("field OTP is not a valid OTP", zap.String("otp", otp), zap.Int("otp_len", otpLen))
 		s.paramMissingResponse(ctx, extra)
 		return
 	}
 
 	// Check request Nonce field
 	nonce := string(args.Peek("nonce"))
-	nonceLen := len(nonce)
 
-	if nonceLen < common.NonceMinLength || nonceLen > common.NonceMaxLength || !misc.IsAlphanum(nonce) {
-		log.Error("field Nonce is not a valid nonce", zap.String("nonce", nonce), zap.Int("nonce_len", nonceLen), zap.Error(err))
+	if nonceLen := len(nonce); nonceLen < common.NonceMinLength || nonceLen > common.NonceMaxLength || !misc.IsAlphaNum(nonce) {
+		log.Error("field Nonce is not a valid nonce", zap.String("nonce", nonce), zap.Int("nonce_len", nonceLen))
 		s.paramMissingResponse(ctx, extra)
 		return
 	}
@@ -75,39 +78,39 @@ func (s *Service) verify(ctx *fasthttp.RequestCtx) {
 		hLen := len(h)
 
 		// If incoming client signature exists, check it
-		if hLen > 0 {
-			hmacSignature, err := base64.StdEncoding.DecodeString(h)
-			if err != nil {
-				log.Error("cannot decode base64 string in H field", zap.String("h", h), zap.Error(err))
-				s.paramMissingResponse(ctx, extra)
-				return
-			}
-
-			// Verify client HMAC
-			var sm []string
-			args.VisitAll(func(key, value []byte) {
-				if !bytes.Equal(key, []byte{'h'}) { // Remove the request signature itself
-					sm = append(sm, string(key)+"="+string(value))
-				}
-			})
-
-			signature := common.SignMap(sm, s.apiKey)
-			if !hmac.Equal(hmacSignature, signature) {
-				log.Error("bad request HMAC signature detected, rejecting request", zap.Error(err))
-				s.badSignatureResponse(ctx, extra)
-				return
-			}
-		} else {
-			log.Error("missing signature H field, but have api-secret specified, rejecting request", zap.Error(err))
+		if hLen == 0 {
+			log.Error("missing signature H field, but have api-secret specified, rejecting request")
 			s.paramMissingResponse(ctx, extra)
+			return
+		}
+
+		hmacSignature, err := base64.StdEncoding.DecodeString(h)
+		if err != nil {
+			log.Error("cannot decode base64 string in H field", zap.String("h", h), zap.Error(err))
+			s.paramMissingResponse(ctx, extra)
+			return
+		}
+
+		// Verify client HMAC
+		var sm []string
+		args.VisitAll(func(key, value []byte) {
+			if !bytes.Equal(key, []byte{'h'}) { // Remove the request signature itself
+				sm = append(sm, string(key)+"="+string(value))
+			}
+		})
+
+		if signature := common.SignMap(sm, s.apiKey); !hmac.Equal(hmacSignature, signature) {
+			log.Error("bad request HMAC signature detected, rejecting request", zap.Error(err))
+			fmt.Println(base64.StdEncoding.EncodeToString(signature))
+			s.badSignatureResponse(ctx, extra)
 			return
 		}
 	}
 
 	// Ok, all checks done, let's try OTP verify
-	matches := regexp.MustCompile(`(?m)^([cbdefghijklnrtuv]{0,16})([cbdefghijklnrtuv]{32})$`).FindAllStringSubmatch(otp, -1)
+	matches := regexp.MustCompile(`(?m)^([cbdefghijklnrtuv]{12})([cbdefghijklnrtuv]{32})$`).FindAllStringSubmatch(otp, -1)
 	if len(matches) != 1 || len(matches[0]) != 3 {
-		log.Error("invalid OTP format, cannot extract client ID and hash", zap.Error(err))
+		log.Error("invalid OTP format, cannot extract client ID and hash")
 		s.badOTPResponse(ctx, extra)
 		return
 	}
@@ -119,10 +122,6 @@ func (s *Service) verify(ctx *fasthttp.RequestCtx) {
 
 	log = log.With(zap.String("id", publicID))
 
-	if s.storage == nil {
-		log.Fatal("storage is nil")
-	}
-
 	otpData, err := s.storage.DecryptOTP(publicID, matches[0][2])
 	if err != nil {
 		log.Error("error decrypting OTP", zap.Error(err))
@@ -132,6 +131,7 @@ func (s *Service) verify(ctx *fasthttp.RequestCtx) {
 
 	user, ok := s.Users[publicID]
 	if !ok {
+		// If no user found in memory storage, create one
 		s.Users[publicID] = &common.OTPUser{
 			UsageCounter:   otpData.UsageCounter,
 			SessionCounter: otpData.SessionCounter,
@@ -234,9 +234,13 @@ func (s *Service) test(ctx *fasthttp.RequestCtx) {
 			s.log.Error("error serving test request", zap.Error(err))
 		}
 
-		body, err := ioutil.ReadAll(res.Body)
+		body, err := io.ReadAll(res.Body)
 		if err != nil {
 			s.log.Error("error reading response", zap.Error(err))
+		}
+
+		if closerError := res.Body.Close(); closerError != nil {
+			s.log.Error("error closing body", zap.Error(closerError))
 		}
 
 		params.Result = string(body)
