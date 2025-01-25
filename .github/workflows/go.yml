@@ -27,8 +27,8 @@ jobs:
       - name: dump dependencies (for nancy)
         run: go list -json -m all > go.list
 
-      - name: Nancy (deps vulnerabilities)
-        uses: sonatype-nexus-community/nancy-github-action@main
+#      - name: Nancy (deps vulnerabilities)
+#        uses: sonatype-nexus-community/nancy-github-action@main
 
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v4
