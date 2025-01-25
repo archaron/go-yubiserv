@@ -1,4 +1,6 @@
 # go-yubiserv
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Farcharon%2Fgo-yubiserv.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Farcharon%2Fgo-yubiserv?ref=badge_shield)
+
 
 Service for Yubikey local validation. Supports SQLite and Hashicorp Valut keystores.
 
@@ -82,3 +84,6 @@ vault:
   role_file: role_id
   secret_file: secret_id
 ```
+
+## License
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Farcharon%2Fgo-yubiserv.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Farcharon%2Fgo-yubiserv?ref=badge_large)
