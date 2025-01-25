@@ -5,8 +5,6 @@
 [![GitHub Workflow Status](https://github.com/archaron/go-yubiserv/actions/workflows/go.yml/badge.svg)](https://github.com/archaron/go-yubiserv/actions/workflows/go.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/archaron/go-yubiserv)](https://goreportcard.com/report/github.com/archaron/go-yubiserv)
 ![Go version](https://img.shields.io/github/go-mod/go-version/archaron/go-yubiserv?style=flat&label=Go%20%3E%3D)
-[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Farcharon%2Fgo-yubiserv.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Farcharon%2Fgo-yubiserv?ref=badge_shield)
-[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Farcharon%2Fgo-yubiserv.svg?type=small)](https://app.fossa.com/projects/git%2Bgithub.com%2Farcharon%2Fgo-yubiserv?ref=badge_large)
 
 Service for Yubikey local validation. Supports SQLite and Hashicorp Valut keystores.
 
