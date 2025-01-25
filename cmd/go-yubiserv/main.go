@@ -60,6 +60,10 @@ func defaults(ctx *cli.Context, v *viper.Viper) error {
 		return err
 	}
 
+	if err := sqlitestorage.Defaults(ctx, v); err != nil {
+		return err
+	}
+
 	//err := v.WriteConfigAs("./x.yaml")
 	//if err != nil {
 	//	return err
