@@ -1,3 +1,9 @@
+[![license](https://img.shields.io/github/license/archaron/go-yubiserv.svg)](https://github.com/archaron/go-yubiserv/blob/main/LICENSE)
+[![PkgGoDev](https://pkg.go.dev/badge/mod/github.com/archaron/go-yubiserv)](https://pkg.go.dev/mod/github.com/archaron/go-yubiserv)
+[![GitHub Workflow Status](https://github.com/archaron/go-yubiserv/actions/workflows/go.yml/badge.svg)](https://github.com/archaron/go-yubiserv/actions/workflows/go.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/archaron/go-yubiserv)](https://goreportcard.com/report/github.com/archaron/go-yubiserv)
+![Go version](https://img.shields.io/github/go-mod/go-version/archaron/go-yubiserv?style=flat&label=Go%20%3E%3D)
+
 # go-yubiserv
 
 Service for Yubikey local validation. Supports SQLite and Hashicorp Valut keystores.
