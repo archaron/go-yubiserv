@@ -98,7 +98,7 @@ func (s *Service) Start(ctx context.Context) error {
 }
 
 // Stop API service.
-func (s *Service) Stop(ctx context.Context) {
+func (s *Service) Stop(_ context.Context) {
 	defer s.cancel()
 	// Notify systemd app is stopping
 	if _, err := daemon.SdNotify(false, daemon.SdNotifyStopping); err != nil {

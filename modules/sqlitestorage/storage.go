@@ -31,7 +31,7 @@ type (
 		Storage common.StorageInterface
 	}
 
-	// Service for SQLite database storage
+	// Service for SQLite database storage.
 	Service struct {
 		log    *zap.Logger
 		getKey func(publicID string) (*key, error)

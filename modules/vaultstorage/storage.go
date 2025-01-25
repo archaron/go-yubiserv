@@ -6,7 +6,7 @@ import (
 	"time"
 
 	vault "github.com/hashicorp/vault/api"
-	auth "github.com/hashicorp/vault/api/auth/approle"
+	"github.com/hashicorp/vault/api/auth/approle"
 	"github.com/im-kulikov/helium/service"
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
@@ -103,8 +103,8 @@ func (s *Service) Start(ctx context.Context) error {
 }
 
 func (s *Service) login() error {
-	secretID := &auth.SecretID{FromString: s.secretID}
-	appRoleAuth, err := auth.NewAppRoleAuth(
+	secretID := &approle.SecretID{FromString: s.secretID}
+	appRoleAuth, err := approle.NewAppRoleAuth(
 		s.roleID,
 		secretID,
 	)
@@ -129,7 +129,7 @@ func (s *Service) login() error {
 }
 
 // Stop the storage service.
-func (s *Service) Stop(ctx context.Context) {
+func (s *Service) Stop(_ context.Context) {
 }
 
 // Name returns name of the service.
