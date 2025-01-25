@@ -95,7 +95,7 @@ func main() {
 		},
 	}
 	c.Usage = "Yubikey verification server"
-	c.UsageText = "Used to authenticate remote clients via ubikey OTP"
+	c.UsageText = "Used to authenticate remote clients via yubikey OTP"
 
 	c.Commands = cli.Commands{
 		{
