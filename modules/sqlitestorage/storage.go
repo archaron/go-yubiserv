@@ -31,6 +31,7 @@ type (
 		Storage common.StorageInterface
 	}
 
+	// Service for SQLite database storage
 	Service struct {
 		log    *zap.Logger
 		getKey func(publicID string) (*key, error)
@@ -41,6 +42,7 @@ type (
 	}
 )
 
+// Start the storage service.
 func (s *Service) Start(ctx context.Context) error {
 	var err error
 	s.log.Debug("keys storage start", zap.String("db_path", s.dbPath))
@@ -64,17 +66,21 @@ func (s *Service) Start(ctx context.Context) error {
 	return ctx.Err()
 }
 
-func (s *Service) Stop(ctx context.Context) {
+// Stop the storage service.
+func (s *Service) Stop(_ context.Context) {
 	if s.db != nil {
 		_ = s.db.Close()
 	}
 }
 
+// Name of the service.
 func (s *Service) Name() string {
 	return "sqlite-keys-storage"
 }
 
+// Defaults for the sqlite storage service.
 func Defaults(ctx *cli.Context, v *viper.Viper) error {
+	fmt.Println("db=", ctx.String("sqlite-dbpath"))
 	v.SetDefault("sqlite.dbpath", ctx.String("sqlite-dbpath"))
 	return nil
 }
