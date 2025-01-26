@@ -7,7 +7,7 @@ import (
 	"fmt"
 
 	"github.com/howeyc/crc16"
-	"gopkg.in/errgo.v2/fmt/errors"
+	"github.com/pkg/errors"
 
 	"github.com/archaron/go-yubiserv/misc"
 )
@@ -23,8 +23,8 @@ type OTP struct {
 }
 
 // MarshalBinary marshals OTP structure to slice of bytes.
-func (o *OTP) MarshalBinary() (data []byte, err error) {
-	data = make([]byte, 16)
+func (o *OTP) MarshalBinary() ([]byte, error) {
+	data := make([]byte, 16)
 	copy(data, o.PrivateID[:])
 	binary.LittleEndian.PutUint16(data[6:8], o.UsageCounter)
 	data[8] = o.TimestampCounter[2]
@@ -33,6 +33,7 @@ func (o *OTP) MarshalBinary() (data []byte, err error) {
 	data[11] = o.SessionCounter
 	binary.LittleEndian.PutUint16(data[12:14], o.Random)
 	binary.LittleEndian.PutUint16(data[14:16], crc16.ChecksumCCITT(data[:14]))
+
 	return data, nil
 }
 
@@ -47,7 +48,7 @@ func (o *OTP) UnmarshalBinary(data []byte) error {
 	o.CRC = binary.LittleEndian.Uint16(data[14:16])
 
 	if crc := crc16.ChecksumCCITT(data[:14]); crc != o.CRC {
-		return errors.Newf("OTP CRC mismatch must be 0x%04x but is 0x%04x", o.CRC, crc)
+		return fmt.Errorf("OTP CRC mismatch must be 0x%04x but is 0x%04x", o.CRC, crc)
 	}
 
 	// Read the remaining data
@@ -64,14 +65,14 @@ func (o *OTP) UnmarshalBinary(data []byte) error {
 func (o *OTP) Decrypt(key []byte, payload []byte) error {
 	a, err := aes.NewCipher(key)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "cannot create aes cipher")
 	}
 
 	decrypted := make([]byte, len(payload))
 	a.Decrypt(decrypted, payload)
 
 	if err := o.UnmarshalBinary(decrypted); err != nil {
-		return err
+		return errors.Wrap(err, "cannot unmarshall otp")
 	}
 
 	return nil
@@ -81,7 +82,7 @@ func (o *OTP) Decrypt(key []byte, payload []byte) error {
 func (o *OTP) Encrypt(key []byte) ([]byte, error) {
 	a, err := aes.NewCipher(key)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "cannot create aes cipher")
 	}
 
 	payload, _ := o.MarshalBinary() // always returns nil as error
@@ -92,11 +93,11 @@ func (o *OTP) Encrypt(key []byte) ([]byte, error) {
 	return result, nil
 }
 
-// EncryptToModhex encrypts current OTP structure with given encryption key and returns encrypted modhex representation.
-func (o *OTP) EncryptToModhex(key []byte) (string, error) {
+// EncryptToModHex encrypts current OTP structure with given encryption key and returns encrypted modhex representation.
+func (o *OTP) EncryptToModHex(key []byte) (string, error) {
 	data, err := o.Encrypt(key)
 	if err != nil {
-		return "", err
+		return "", errors.Wrap(err, "cannot encrypt otp")
 	}
 
 	return misc.HexToModHex(hex.EncodeToString(data)), nil

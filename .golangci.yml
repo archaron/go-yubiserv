@@ -1,29 +1,13 @@
 run:
-  go: '1.19'
+  go: '1.23'
 linters:
-  enable-all: false
-  enable:
-    - unparam
-    - whitespace
-    - unconvert
-    - bodyclose
-    - gofmt
-    - gocritic
-    - godot
-    - prealloc
-    - rowserrcheck
-    - unconvert
-    - lll
-    - cyclop
-    - gci
-    - gosec
-    - prealloc
-    - revive
-    - gochecknoglobals
-    - funlen
+  enable-all: true
   disable:
-    - errcheck
-    - ineffassign
+    - gofmt
+    - gci
+    - exhaustruct
+    - varnamelen
+    - depguard
 
 linters-settings:
   govet:
@@ -56,60 +40,7 @@ linters-settings:
     min-complexity: 35
 
 issues:
-  exclude-rules:
-    - path: mock # We avoid warnings about comments for package and public functions in mock package.
-      linters:
-        - golint
-    - path: _test\.go
-      linters:
-        - goconst
-        - scopelint # To avoid warnings in table-driven tests combined with t.Run
-        - gochecknoglobals
-        - funlen
-        - dupl
-        - govet
-        - staticcheck
-        - gocyclo
-        - errcheck
-        - nlreturn
-    - path: slack_incoming_messages\.go
-      linters:
-        - dupl
-    - path: slack_outgoing_messages\.go
-      linters:
-        - dupl
-    - path: job\.go
-      linters:
-        - dupl
-    - path: postgres\.go
-      linters:
-        - errcheck
-    - path: parse_incoming_job\.go
-      linters:
-        - funlen
-        - gocyclo
   exclude-use-default: false
   exclude:
-    # golint: Package comment check for every file
-    - should have a package comment, unless
-
-    # govet: Common false positives
-    - (possible misuse of unsafe.Pointer|should have signature)
-
-    # gosec: Too many false-positives on 'unsafe' usage
-    - Use of unsafe calls should be audited
-
-    # gosec: Too many false-positives for parametrized shell calls
-    - Subprocess launch(ed with variable|ing should be audited)
-
-    # gosec: Duplicated errcheck checks
-    - G104
-
-    # gosec: Too many issues in popular repos
-    - (Expect directory permissions to be 0750 or less|Expect file permissions to be 0600 or less)
-
-    # gosec: False positive is triggered by 'src, err := ioutil.ReadFile(filename)'
-    - Potential file inclusion via variable
-
     # gochecknoglobals: allow version variable
     - "`version` is a global variable"

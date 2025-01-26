@@ -41,6 +41,7 @@ func (s *Service) verify(ctx *fasthttp.RequestCtx) {
 	if id, err := args.GetUint("id"); err != nil || id < 1 {
 		log.Error("field ID has wrong format", zap.Int("id", id), zap.Error(err))
 		s.paramMissingResponse(ctx, extra)
+
 		return
 	}
 
@@ -55,9 +56,10 @@ func (s *Service) verify(ctx *fasthttp.RequestCtx) {
 		otp = misc.DvorakToModHex(otp)
 	}
 
-	if otpLen := len(otp); otpLen < common.OTPMinLength || otpLen > common.OTPMaxLength || !misc.IsModHex(otp) {
+	if otpLen := len(otp); otpLen != common.OTPMaxLength {
 		log.Error("field OTP is not a valid OTP", zap.String("otp", otp), zap.Int("otp_len", otpLen))
 		s.paramMissingResponse(ctx, extra)
+
 		return
 	}
 
@@ -67,6 +69,7 @@ func (s *Service) verify(ctx *fasthttp.RequestCtx) {
 	if nonceLen := len(nonce); nonceLen < common.NonceMinLength || nonceLen > common.NonceMaxLength || !misc.IsAlphaNum(nonce) {
 		log.Error("field Nonce is not a valid nonce", zap.String("nonce", nonce), zap.Int("nonce_len", nonceLen))
 		s.paramMissingResponse(ctx, extra)
+
 		return
 	}
 
@@ -87,11 +90,13 @@ func (s *Service) verify(ctx *fasthttp.RequestCtx) {
 		if err != nil {
 			log.Error("cannot decode base64 string in H field", zap.String("h", h), zap.Error(err))
 			s.paramMissingResponse(ctx, extra)
+
 			return
 		}
 
 		// Verify client HMAC
 		var sm []string
+
 		args.VisitAll(func(key, value []byte) {
 			if !bytes.Equal(key, []byte{'h'}) { // Remove the request signature itself
 				sm = append(sm, string(key)+"="+string(value))
@@ -100,20 +105,23 @@ func (s *Service) verify(ctx *fasthttp.RequestCtx) {
 
 		if signature := common.SignMap(sm, s.apiKey); !hmac.Equal(hmacSignature, signature) {
 			log.Error("bad request HMAC signature detected, rejecting request", zap.Error(err))
-			fmt.Println(base64.StdEncoding.EncodeToString(signature))
+			// fmt.Println(base64.StdEncoding.EncodeToString(signature))
 			s.badSignatureResponse(ctx, extra)
+
 			return
 		}
 	}
 
 	// Ok, all checks done, let's try OTP verify
 	matches := regexp.MustCompile(fmt.Sprintf("(?m)^([cbdefghijklnrtuv]{%d})([cbdefghijklnrtuv]{%d})$",
-		common.PublicIDMaxLength,
+		common.PublicIDLength,
 		common.TokenLength,
 	)).FindAllStringSubmatch(otp, -1)
+
 	if len(matches) != 1 || len(matches[0]) != 3 {
 		log.Error("invalid OTP format, cannot extract client ID and hash")
 		s.badOTPResponse(ctx, extra)
+
 		return
 	}
 
@@ -128,6 +136,7 @@ func (s *Service) verify(ctx *fasthttp.RequestCtx) {
 	if err != nil {
 		log.Error("error decrypting OTP", zap.Error(err))
 		s.badOTPResponse(ctx, extra)
+
 		return
 	}
 
@@ -138,9 +147,11 @@ func (s *Service) verify(ctx *fasthttp.RequestCtx) {
 			SessionCounter: otpData.SessionCounter,
 			Timestamp:      otpData.TimestampCounter,
 		}
+
 		log.Debug("add new OTP user")
 	} else {
 		log.Debug("existing OTP user", zap.Any("data", user))
+
 		if (user.UsageCounter > otpData.UsageCounter) ||
 			(user.UsageCounter == otpData.UsageCounter && user.SessionCounter >= otpData.SessionCounter) {
 			log.Warn("saved counters >= OTP decoded counters, rejecting",
@@ -204,9 +215,11 @@ func (s *Service) test(ctx *fasthttp.RequestCtx) {
 
 		b := make([]byte, 16)
 		_, err := rand.Read(b)
+
 		if err != nil {
 			return
 		}
+
 		nonce := fmt.Sprintf("%x", b)[:32]
 
 		data := []string{

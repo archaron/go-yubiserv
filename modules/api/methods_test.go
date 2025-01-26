@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/im-kulikov/helium/settings"
 	"github.com/stretchr/testify/require"
+	"github.com/valyala/fasthttp"
 	"go.uber.org/zap/zaptest"
 
 	"github.com/archaron/go-yubiserv/common"
@@ -28,41 +30,30 @@ func (s *testStorage) DecryptOTP(publicID, token string) (*common.OTP, error) {
 
 	aesKey, err := hex.DecodeString("c4422890653076cde73d449b191b416a")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot decode aes: %w", err)
 	}
 
 	binToken, err := hex.DecodeString(misc.ModHexToHex(token))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot decode token: %w", err)
 	}
 
 	otp := &common.OTP{}
+
 	err = otp.Decrypt(aesKey, binToken)
 	if err != nil {
 		return nil, common.ErrStorageDecryptFail
 	}
 
-	return otp, err
+	return otp, nil
 }
 
 func Test_verify(t *testing.T) {
-	apikey, err := base64.StdEncoding.DecodeString("mG5be6ZJU1qBGz24yPh/ESM3UdU=")
-	storage := &testStorage{}
+	t.Parallel()
 
-	// Create test router
-	svc := &Service{
-		log:     zaptest.NewLogger(t),
-		apiKey:  apikey,
-		storage: storage,
-		Users:   map[string]*common.OTPUser{},
-	}
+	svc := createTestService(t, &testStorage{})
 
-	svc.gmtLocation, err = time.LoadLocation("GMT")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	t.Run("should validate signed  OTP request", func(t *testing.T) {
+	t.Run("should validate signed  OTP request", func(t *testing.T) { //nolint:paralleltest
 		q := url.Values{
 			"id":    []string{"1"},
 			"otp":   []string{"cccccccccccbiucvrkjiegbhidrcicvlgrcgkgurhjnj"},
@@ -70,24 +61,12 @@ func Test_verify(t *testing.T) {
 			"h":     []string{"Fieq5toKf4ts+Lp2nCdibXjeUDI="},
 		}
 
-		req, err := http.NewRequest(http.MethodGet, "http://test/wsapi/2.0/verify/?"+q.Encode(), nil)
-		require.NoError(t, err)
-
-		res, err := common.Serve(svc.verify, req)
-		require.NoError(t, err)
-
-		body, err := io.ReadAll(res.Body)
-		require.NoError(t, res.Body.Close())
-		require.NoError(t, err)
-
-		require.Equal(t, http.StatusOK, res.StatusCode)
-
-		values := decodeAnswer(t, body)
-		require.Contains(t, values, "status")
+		values := verifyRequest(t, q, svc)
 		require.Equal(t, "OK", values["status"])
 	})
 
-	t.Run("should error on repeated OTP request", func(t *testing.T) {
+	t.Run("should error on repeated OTP request", func(t *testing.T) { //nolint:paralleltest
+
 		q := url.Values{
 			"id":    []string{"1"},
 			"otp":   []string{"cccccccccccbiucvrkjiegbhidrcicvlgrcgkgurhjnj"},
@@ -95,24 +74,13 @@ func Test_verify(t *testing.T) {
 			"h":     []string{"Fieq5toKf4ts+Lp2nCdibXjeUDI="},
 		}
 
-		req, err := http.NewRequest(http.MethodGet, "http://test/wsapi/2.0/verify/?"+q.Encode(), nil)
-		require.NoError(t, err)
-
-		res, err := common.Serve(svc.verify, req)
-		require.NoError(t, err)
-
-		body, err := io.ReadAll(res.Body)
-		require.NoError(t, res.Body.Close())
-		require.NoError(t, err)
-
-		require.Equal(t, http.StatusOK, res.StatusCode)
-
-		values := decodeAnswer(t, body)
-		require.Contains(t, values, "status")
+		values := verifyRequest(t, q, svc)
 		require.Equal(t, "REPLAYED_OTP", values["status"])
 	})
 
 	t.Run("should validate signed dvorak OTP request", func(t *testing.T) {
+		t.Parallel()
+
 		q := url.Values{
 			"id":    []string{"2"},
 			"otp":   []string{misc.ModHexToDvorak("cccccccccccbdbcuefnnfbtcnhujnbfrufectfdjgdlc")},
@@ -120,120 +88,13 @@ func Test_verify(t *testing.T) {
 			"h":     []string{"JA5nlNpWZ11shZpBgVc81AF/v2c="},
 		}
 
-		req, err := http.NewRequest(http.MethodGet, "http://test/wsapi/2.0/verify/?"+q.Encode(), nil)
-		require.NoError(t, err)
-
-		res, err := common.Serve(svc.verify, req)
-		require.NoError(t, err)
-
-		body, err := io.ReadAll(res.Body)
-		require.NoError(t, res.Body.Close())
-		require.NoError(t, err)
-
-		require.Equal(t, http.StatusOK, res.StatusCode)
-
-		values := decodeAnswer(t, body)
-		require.Contains(t, values, "status")
+		values := verifyRequest(t, q, svc)
 		require.Equal(t, "OK", values["status"])
 	})
 
-	t.Run("should error on no id", func(t *testing.T) {
-		q := url.Values{
-			"otp":   []string{"cccccccccccbiucvrkjiegbhidrcicvlgrcgkgurhjnj"},
-			"nonce": []string{"jrFwbaYFhn0HoxZIsd9LQ6w2ceU"},
-			"h":     []string{"Fieq5toKf4ts+Lp2nCdibXjeUDI="},
-		}
-
-		req, err := http.NewRequest(http.MethodGet, "http://test/wsapi/2.0/verify/?"+q.Encode(), nil)
-		require.NoError(t, err)
-
-		res, err := common.Serve(svc.verify, req)
-		require.NoError(t, err)
-
-		body, err := io.ReadAll(res.Body)
-		require.NoError(t, res.Body.Close())
-		require.NoError(t, err)
-
-		require.Equal(t, http.StatusOK, res.StatusCode)
-
-		values := decodeAnswer(t, body)
-		require.Contains(t, values, "status")
-		require.Equal(t, "MISSING_PARAMETER", values["status"])
-	})
-
-	t.Run("should error on no otp", func(t *testing.T) {
-		q := url.Values{
-			"id":    []string{"2"},
-			"nonce": []string{"jrFwbaYFhn0HoxZIsd9LQ6w2ceU"},
-			"h":     []string{"Fieq5toKf4ts+Lp2nCdibXjeUDI="},
-		}
-
-		req, err := http.NewRequest(http.MethodGet, "http://test/wsapi/2.0/verify/?"+q.Encode(), nil)
-		require.NoError(t, err)
-
-		res, err := common.Serve(svc.verify, req)
-		require.NoError(t, err)
-
-		body, err := io.ReadAll(res.Body)
-		require.NoError(t, res.Body.Close())
-		require.NoError(t, err)
-
-		require.Equal(t, http.StatusOK, res.StatusCode)
-
-		values := decodeAnswer(t, body)
-		require.Contains(t, values, "status")
-		require.Equal(t, "MISSING_PARAMETER", values["status"])
-	})
-
-	t.Run("should error on no nonce", func(t *testing.T) {
-		q := url.Values{
-			"id":  []string{"2"},
-			"otp": []string{"cccccccccccbiucvrkjiegbhidrcicvlgrcgkgurhjnj"},
-			"h":   []string{"Fieq5toKf4ts+Lp2nCdibXjeUDI="},
-		}
-
-		req, err := http.NewRequest(http.MethodGet, "http://test/wsapi/2.0/verify/?"+q.Encode(), nil)
-		require.NoError(t, err)
-
-		res, err := common.Serve(svc.verify, req)
-		require.NoError(t, err)
-
-		body, err := io.ReadAll(res.Body)
-		require.NoError(t, res.Body.Close())
-		require.NoError(t, err)
-
-		require.Equal(t, http.StatusOK, res.StatusCode)
-
-		values := decodeAnswer(t, body)
-		require.Contains(t, values, "status")
-		require.Equal(t, "MISSING_PARAMETER", values["status"])
-	})
-
-	t.Run("should error on no h with apiKey set", func(t *testing.T) {
-		q := url.Values{
-			"id":    []string{"2"},
-			"nonce": []string{"jrFwbaYFhn0HoxZIsd9LQ6w2ceU"},
-			"otp":   []string{"cccccccccccbiucvrkjiegbhidrcicvlgrcgkgurhjnj"},
-		}
-
-		req, err := http.NewRequest(http.MethodGet, "http://test/wsapi/2.0/verify/?"+q.Encode(), nil)
-		require.NoError(t, err)
-
-		res, err := common.Serve(svc.verify, req)
-		require.NoError(t, err)
-
-		body, err := io.ReadAll(res.Body)
-		require.NoError(t, res.Body.Close())
-		require.NoError(t, err)
-
-		require.Equal(t, http.StatusOK, res.StatusCode)
-
-		values := decodeAnswer(t, body)
-		require.Contains(t, values, "status")
-		require.Equal(t, "MISSING_PARAMETER", values["status"])
-	})
-
 	t.Run("should error on invalid h with apiKey set", func(t *testing.T) {
+		t.Parallel()
+
 		q := url.Values{
 			"id":    []string{"2"},
 			"nonce": []string{"jrFwbaYFhn0HoxZIsd9LQ6w2ceU"},
@@ -241,24 +102,13 @@ func Test_verify(t *testing.T) {
 			"h":     []string{"invalid"},
 		}
 
-		req, err := http.NewRequest(http.MethodGet, "http://test/wsapi/2.0/verify/?"+q.Encode(), nil)
-		require.NoError(t, err)
-
-		res, err := common.Serve(svc.verify, req)
-		require.NoError(t, err)
-
-		body, err := io.ReadAll(res.Body)
-		require.NoError(t, res.Body.Close())
-		require.NoError(t, err)
-
-		require.Equal(t, http.StatusOK, res.StatusCode)
-
-		values := decodeAnswer(t, body)
-		require.Contains(t, values, "status")
+		values := verifyRequest(t, q, svc)
 		require.Equal(t, "MISSING_PARAMETER", values["status"])
 	})
 
 	t.Run("should error on not matching h with apiKey set", func(t *testing.T) {
+		t.Parallel()
+
 		q := url.Values{
 			"id":    []string{"2"},
 			"nonce": []string{"jrFwbaYFhn0HoxZIsd9LQ6w2ceU"},
@@ -266,68 +116,34 @@ func Test_verify(t *testing.T) {
 			"h":     []string{"Fieq5toKf4ts+Lp2nCdibXjeUDD="},
 		}
 
-		req, err := http.NewRequest(http.MethodGet, "http://test/wsapi/2.0/verify/?"+q.Encode(), nil)
-		require.NoError(t, err)
-
-		res, err := common.Serve(svc.verify, req)
-		require.NoError(t, err)
-
-		body, err := io.ReadAll(res.Body)
-		require.NoError(t, res.Body.Close())
-		require.NoError(t, err)
-
-		require.Equal(t, http.StatusOK, res.StatusCode)
-
-		values := decodeAnswer(t, body)
-		require.Contains(t, values, "status")
+		values := verifyRequest(t, q, svc)
 		require.Equal(t, "BAD_SIGNATURE", values["status"])
 	})
 
 	t.Run("should error on invalid OTP format", func(t *testing.T) {
+		t.Parallel()
+
 		q := url.Values{
 			"id":    []string{"2"},
 			"nonce": []string{"jrFwbaYFhn0HoxZIsd9LQ6w2ceU"},
-			"otp":   []string{"ccccccccbiucvrkjiegbhidrcicvlgrcgkgurhjnj"},
-			"h":     []string{"DfNzPo8GWR498s3VrnI4bvfzLws="},
+			"otp":   []string{"cccccccccccbiucvrkjiegbhidrcicvlgrcgkgurhjnq"},
+			"h":     []string{"OibQi9SioatWjUt6ytNf4Jy1KgU="},
 		}
 
-		req, err := http.NewRequest(http.MethodGet, "http://test/wsapi/2.0/verify/?"+q.Encode(), nil)
-		require.NoError(t, err)
-
-		res, err := common.Serve(svc.verify, req)
-		require.NoError(t, err)
-
-		body, err := io.ReadAll(res.Body)
-		require.NoError(t, res.Body.Close())
-		require.NoError(t, err)
-
-		require.Equal(t, http.StatusOK, res.StatusCode)
-
-		values := decodeAnswer(t, body)
-		require.Contains(t, values, "status")
+		values := verifyRequest(t, q, svc)
 		require.Equal(t, "BAD_OTP", values["status"])
 	})
 
 	t.Run("should error on nil storage", func(t *testing.T) {
-		req, err := http.NewRequest(http.MethodGet, "http://test/wsapi/2.0/verify/", nil)
-		require.NoError(t, err)
-		svc.storage = nil
-		res, err := common.Serve(svc.verify, req)
-		svc.storage = storage
-		require.NoError(t, err)
+		t.Parallel()
 
-		body, err := io.ReadAll(res.Body)
-		require.NoError(t, res.Body.Close())
-		require.NoError(t, err)
-
-		require.Equal(t, http.StatusOK, res.StatusCode)
-
-		values := decodeAnswer(t, body)
-		require.Contains(t, values, "status")
+		values := verifyRequest(t, url.Values{}, createTestService(t, nil))
 		require.Equal(t, "BACKEND_ERROR", values["status"])
 	})
 
 	t.Run("should error on decryption", func(t *testing.T) {
+		t.Parallel()
+
 		q := url.Values{
 			"id":    []string{"1"},
 			"otp":   []string{"cccccccccccbiucvrkjiegbhidrcicvlgrcgkgurhjnn"},
@@ -335,47 +151,82 @@ func Test_verify(t *testing.T) {
 			"h":     []string{"WtW0HVlSTNsoa5Nijq2eWggqzsE="},
 		}
 
-		req, err := http.NewRequest(http.MethodGet, "http://test/wsapi/2.0/verify/?"+q.Encode(), nil)
-		require.NoError(t, err)
-
-		res, err := common.Serve(svc.verify, req)
-		require.NoError(t, err)
-
-		body, err := io.ReadAll(res.Body)
-		require.NoError(t, res.Body.Close())
-		require.NoError(t, err)
-
-		require.Equal(t, http.StatusOK, res.StatusCode)
-
-		values := decodeAnswer(t, body)
-		require.Contains(t, values, "status")
+		values := verifyRequest(t, q, svc)
 		require.Equal(t, "BAD_OTP", values["status"])
 	})
 }
 
+func Test_verifyNnParams(t *testing.T) {
+	t.Parallel()
+
+	svc := createTestService(t, &testStorage{})
+
+	t.Run("should error on no id", func(t *testing.T) {
+		t.Parallel()
+
+		q := url.Values{
+			"otp":   []string{"cccccccccccbiucvrkjiegbhidrcicvlgrcgkgurhjnj"},
+			"nonce": []string{"jrFwbaYFhn0HoxZIsd9LQ6w2ceU"},
+			"h":     []string{"Fieq5toKf4ts+Lp2nCdibXjeUDI="},
+		}
+
+		values := verifyRequest(t, q, svc)
+		require.Equal(t, "MISSING_PARAMETER", values["status"])
+	})
+
+	t.Run("should error on no otp", func(t *testing.T) {
+		t.Parallel()
+
+		q := url.Values{
+			"id":    []string{"2"},
+			"nonce": []string{"jrFwbaYFhn0HoxZIsd9LQ6w2ceU"},
+			"h":     []string{"Fieq5toKf4ts+Lp2nCdibXjeUDI="},
+		}
+
+		values := verifyRequest(t, q, svc)
+		require.Equal(t, "MISSING_PARAMETER", values["status"])
+	})
+
+	t.Run("should error on no nonce", func(t *testing.T) {
+		t.Parallel()
+
+		q := url.Values{
+			"id":  []string{"2"},
+			"otp": []string{"cccccccccccbiucvrkjiegbhidrcicvlgrcgkgurhjnj"},
+			"h":   []string{"Fieq5toKf4ts+Lp2nCdibXjeUDI="},
+		}
+
+		values := verifyRequest(t, q, svc)
+		require.Equal(t, "MISSING_PARAMETER", values["status"])
+	})
+
+	t.Run("should error on no h with apiKey set", func(t *testing.T) {
+		t.Parallel()
+
+		q := url.Values{
+			"id":    []string{"2"},
+			"nonce": []string{"jrFwbaYFhn0HoxZIsd9LQ6w2ceU"},
+			"otp":   []string{"cccccccccccbiucvrkjiegbhidrcicvlgrcgkgurhjnj"},
+		}
+
+		values := verifyRequest(t, q, svc)
+		require.Equal(t, "MISSING_PARAMETER", values["status"])
+	})
+}
+
 func Test_test(t *testing.T) {
-	apikey, err := base64.StdEncoding.DecodeString("mG5be6ZJU1qBGz24yPh/ESM3UdU=")
-	storage := &testStorage{}
+	t.Parallel()
 
-	// Create test router
-	svc := &Service{
-		log:     zaptest.NewLogger(t),
-		apiKey:  apikey,
-		storage: storage,
-		Users:   map[string]*common.OTPUser{},
-	}
-
-	svc.gmtLocation, err = time.LoadLocation("GMT")
-	if err != nil {
-		t.Fatal(err)
-	}
+	svc := createTestService(t, &testStorage{})
 
 	t.Run("should validate signed  OTP request", func(t *testing.T) {
+		t.Parallel()
+
 		q := url.Values{
 			"otp": []string{"cccccccccccbiucvrkjiegbhidrcicvlgrcgkgurhjnj"},
 		}
 
-		req, err := http.NewRequest(http.MethodGet, "http://test/wsapi/2.0/test/?"+q.Encode(), nil)
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://test/wsapi/2.0/test/?"+q.Encode(), nil)
 		require.NoError(t, err)
 
 		res, err := common.Serve(svc.test, req)
@@ -392,20 +243,9 @@ func Test_test(t *testing.T) {
 	})
 }
 
-func decodeAnswer(t *testing.T, body []byte) map[string]string {
-	values := map[string]string{}
-	for _, s := range strings.Split(strings.TrimSpace(string(body)), "\n") {
-		v := strings.SplitN(s, "=", 2)
-		if len(v) > 1 {
-			values[v[0]] = v[1]
-		} else {
-			t.Fatalf("bad answer format: %s", s)
-		}
-	}
-	return values
-}
-
 func Test_ops(t *testing.T) {
+	t.Parallel()
+
 	// Create test router
 	svc := &Service{
 		log:   zaptest.NewLogger(t),
@@ -417,50 +257,104 @@ func Test_ops(t *testing.T) {
 	}
 
 	t.Run("should return version", func(t *testing.T) {
-		req, err := http.NewRequest(http.MethodGet, "http://test/version", nil)
-		require.NoError(t, err)
+		t.Parallel()
 
-		res, err := common.Serve(svc.version, req)
-		require.NoError(t, err)
-
-		body, err := io.ReadAll(res.Body)
-		require.NoError(t, res.Body.Close())
-		require.NoError(t, err)
-		fmt.Println(string(body))
-		// Assertions
-		require.Equal(t, http.StatusOK, res.StatusCode)
-		require.Equal(t, "{\"buildTime\":\"0123456789\",\"status\":\"ok\",\"version\":\"6660999\"}\n", string(body))
+		require.JSONEq(t,
+			"{\"buildTime\":\"0123456789\",\"status\":\"ok\",\"version\":\"6660999\"}\n",
+			opsRequest(t, svc.version),
+		)
 	})
 
 	t.Run("should return health", func(t *testing.T) {
-		req, err := http.NewRequest(http.MethodGet, "http://test/health", nil)
-		require.NoError(t, err)
+		t.Parallel()
 
-		res, err := common.Serve(svc.health, req)
-		require.NoError(t, err)
-
-		body, err := io.ReadAll(res.Body)
-		require.NoError(t, res.Body.Close())
-		require.NoError(t, err)
-		fmt.Println(string(body))
-		// Assertions
-		require.Equal(t, http.StatusOK, res.StatusCode)
-		require.Equal(t, "{\"status\":\"ok\"}\n", string(body))
+		require.JSONEq(t,
+			"{\"status\":\"ok\"}\n",
+			opsRequest(t, svc.health),
+		)
 	})
 
 	t.Run("should return ready", func(t *testing.T) {
-		req, err := http.NewRequest(http.MethodGet, "http://test/rediness", nil)
-		require.NoError(t, err)
+		t.Parallel()
 
-		res, err := common.Serve(svc.readiness, req)
-		require.NoError(t, err)
-
-		body, err := io.ReadAll(res.Body)
-		require.NoError(t, res.Body.Close())
-		require.NoError(t, err)
-		fmt.Println(string(body))
-		// Assertions
-		require.Equal(t, http.StatusOK, res.StatusCode)
-		require.Equal(t, "{\"status\":\"ok\"}\n", string(body))
+		require.JSONEq(t,
+			"{\"status\":\"ok\"}\n",
+			opsRequest(t, svc.readiness),
+		)
 	})
+}
+
+func opsRequest(t *testing.T, handler fasthttp.RequestHandler) string {
+	t.Helper()
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://test/ops", nil)
+	require.NoError(t, err)
+
+	res, err := common.Serve(handler, req)
+	require.NoError(t, err)
+
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, res.Body.Close())
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, res.StatusCode)
+
+	return string(body)
+}
+
+func decodeAnswer(t *testing.T, body []byte) map[string]string {
+	t.Helper()
+
+	values := map[string]string{}
+
+	for _, s := range strings.Split(strings.TrimSpace(string(body)), "\n") {
+		v := strings.SplitN(s, "=", 2)
+		if len(v) > 1 {
+			values[v[0]] = v[1]
+		} else {
+			t.Fatalf("bad answer format: %s", s)
+		}
+	}
+
+	return values
+}
+
+func createTestService(t *testing.T, storage common.StorageInterface) *Service {
+	t.Helper()
+
+	apikey, err := base64.StdEncoding.DecodeString("mG5be6ZJU1qBGz24yPh/ESM3UdU=")
+	require.NoError(t, err)
+
+	// Create test router
+	svc := &Service{
+		log:     zaptest.NewLogger(t),
+		apiKey:  apikey,
+		storage: storage,
+		Users:   map[string]*common.OTPUser{},
+	}
+
+	svc.gmtLocation, err = time.LoadLocation("GMT")
+	require.NoError(t, err)
+
+	return svc
+}
+
+func verifyRequest(t *testing.T, q url.Values, svc *Service) map[string]string {
+	t.Helper()
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://test/wsapi/2.0/verify/?"+q.Encode(), nil)
+	require.NoError(t, err)
+
+	res, err := common.Serve(svc.verify, req)
+	require.NoError(t, err)
+
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, res.Body.Close())
+	require.NoError(t, err)
+
+	require.Equal(t, http.StatusOK, res.StatusCode)
+
+	values := decodeAnswer(t, body)
+	require.Contains(t, values, "status")
+
+	return values
 }

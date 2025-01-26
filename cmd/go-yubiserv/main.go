@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -64,15 +63,15 @@ func defaults(ctx *cli.Context, v *viper.Viper) error {
 		return err
 	}
 
-	//err := v.WriteConfigAs("./x.yaml")
-	//if err != nil {
+	// err := v.WriteConfigAs("./x.yaml")
+	// if err != nil {
 	//	return err
-	//}
+	// }
 
 	return nil
 }
 
-// nolint:gochecknoglobals
+//nolint:gochecknoglobals
 var modules = module.Combine(
 	helium.DefaultApp, // default application
 	grace.Module,      // grace context
@@ -81,7 +80,7 @@ var modules = module.Combine(
 	api.Module,
 )
 
-// nolint:gochecknoglobals
+//nolint:gochecknoglobals
 var generateModules = module.Combine(
 	settings.Module, // settings module
 	logger.Module,   // logger module
@@ -181,8 +180,9 @@ func main() {
 		case "sqlite":
 			modules = modules.Append(sqlitestorage.Module)
 		default:
-			return errors.New("unknown keystore")
+			return fmt.Errorf("unknown keystore: %s", ctx.String("keystore"))
 		}
+
 		h, err := helium.New(&helium.Settings{
 			File:         ctx.String("config"),
 			Prefix:       misc.Prefix,
@@ -223,11 +223,9 @@ func generator() cli.ActionFunc {
 			count := c.Int("count")
 			progflags := c.String("progflags")
 
-			fmt.Println("# ykksm 1")
-			fmt.Printf("# start %d end %d\n", start, start+count)
-			fmt.Println("# serialnr,identity,internaluid,aeskey,lockpw,created,accessed[,progflags]")
-
-			// rand.Read()
+			fmt.Println("# ykksm 1")                                                                  //nolint:forbidigo
+			fmt.Printf("# start %d end %d\n", start, start+count)                                     //nolint:forbidigo
+			fmt.Println("# serialnr,identity,internaluid,aeskey,lockpw,created,accessed[,progflags]") //nolint:forbidigo
 
 			for i := start; i <= count; i++ {
 				ctr := fmt.Sprintf("%012x", i)
@@ -247,9 +245,17 @@ func generator() cli.ActionFunc {
 					log.Fatal("error generating random lockPW", zap.Error(err))
 				}
 
-				// fmt.Printf("# hexctr %s modhexctr %s\n", ctr, modhexctr)
-				fmt.Printf("%d,%s,%s,%s,%s,%s,%s\n", i, modhexctr, internalUID, aesKey, lockPW, time.Now().Format(time.RFC3339), progflags)
-				fmt.Println("# the end")
+				fmt.Printf("%d,%s,%s,%s,%s,%s,%s\n",
+					i,
+					modhexctr,
+					internalUID,
+					aesKey,
+					lockPW,
+					time.Now().Format(time.RFC3339),
+					progflags,
+				) //nolint:forbidigo
+
+				fmt.Println("# the end") //nolint:forbidigo
 			}
 		})
 	}

@@ -4,8 +4,8 @@ import (
 	"github.com/im-kulikov/helium/module"
 )
 
-// Module storage constructor
-var Module = module.Module{
+// Module storage constructor.
+var Module = module.Module{ //nolint:gochecknoglobals
 	{Constructor: newService},
 }
 
