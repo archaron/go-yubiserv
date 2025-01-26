@@ -1,3 +1,4 @@
+// Package api implements web API
 package api
 
 import (

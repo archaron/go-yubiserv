@@ -34,7 +34,7 @@ type (
 	// Service for SQLite database storage.
 	Service struct {
 		log    *zap.Logger
-		getKey func(publicID string) (*key, error)
+		getKey func(publicID string) (*Key, error)
 		db     *sqlx.DB
 
 		dbPath string

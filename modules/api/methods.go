@@ -22,7 +22,6 @@ import (
 )
 
 func (s *Service) verify(ctx *fasthttp.RequestCtx) {
-
 	if s.storage == nil {
 		s.log.Error("storage is nil, cannot verify OTP")
 		s.backendErrorResponse(ctx, nil)
@@ -108,7 +107,10 @@ func (s *Service) verify(ctx *fasthttp.RequestCtx) {
 	}
 
 	// Ok, all checks done, let's try OTP verify
-	matches := regexp.MustCompile(`(?m)^([cbdefghijklnrtuv]{12})([cbdefghijklnrtuv]{32})$`).FindAllStringSubmatch(otp, -1)
+	matches := regexp.MustCompile(fmt.Sprintf("(?m)^([cbdefghijklnrtuv]{%d})([cbdefghijklnrtuv]{%d})$",
+		common.PublicIDMaxLength,
+		common.TokenLength,
+	)).FindAllStringSubmatch(otp, -1)
 	if len(matches) != 1 || len(matches[0]) != 3 {
 		log.Error("invalid OTP format, cannot extract client ID and hash")
 		s.badOTPResponse(ctx, extra)
@@ -129,8 +131,7 @@ func (s *Service) verify(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	user, ok := s.Users[publicID]
-	if !ok {
+	if user, ok := s.Users[publicID]; !ok {
 		// If no user found in memory storage, create one
 		s.Users[publicID] = &common.OTPUser{
 			UsageCounter:   otpData.UsageCounter,
@@ -145,13 +146,13 @@ func (s *Service) verify(ctx *fasthttp.RequestCtx) {
 			log.Warn("saved counters >= OTP decoded counters, rejecting",
 				zap.Uint8("saved_session_counter", user.SessionCounter),
 				zap.Uint8("otp_session_counter", otpData.SessionCounter),
-
 				zap.Uint16("saved_usage_counter", user.UsageCounter),
 				zap.Uint16("otp_usage_counter", otpData.UsageCounter),
 			)
 			s.replayedOTPResponse(ctx, extra)
 			return
 		}
+
 		// Save current counter
 		user.UsageCounter = otpData.UsageCounter
 		user.Timestamp = otpData.TimestampCounter

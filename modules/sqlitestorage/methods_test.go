@@ -24,12 +24,12 @@ func TestStorageDecryptor(t *testing.T) {
 	t.Run("should decrypt test OTP", func(t *testing.T) {
 		for k, vector := range common.TestVectors {
 			// Test stub
-			svc.getKey = func(publicID string) (*key, error) {
+			svc.getKey = func(publicID string) (*Key, error) {
 				if publicID != "cccccccccccc" {
 					return nil, errors.New("test public id must be cccccccccccc")
 				}
 
-				return &key{
+				return &Key{
 					ID:        1,
 					PublicID:  "cccccccccccc",
 					Created:   "",
@@ -87,7 +87,7 @@ func TestStorageDB(t *testing.T) {
 
 	publicID := misc.HexToModHex(fmt.Sprintf("%012x", keyID))
 
-	testKey := &key{
+	testKey := &Key{
 		ID:        keyID,
 		PublicID:  publicID,
 		PrivateID: hex.EncodeToString(privateBuf),

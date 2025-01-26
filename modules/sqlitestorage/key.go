@@ -5,7 +5,7 @@ import (
 )
 
 type (
-	key struct {
+	Key struct {
 		ID        uint64 `db:"id"`
 		PublicID  string `db:"public_id"`
 		Created   string `db:"created"`
@@ -16,7 +16,7 @@ type (
 	}
 )
 
-func (k *key) String() string {
+func (k *Key) String() string {
 	return fmt.Sprintf("YubiKey: ID: %012x, PublicID: %s, PrivateID: %s, AESKey: %s, LockCode: %s Active: %t Created: %s",
 		k.ID,
 		k.PublicID,

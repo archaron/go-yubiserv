@@ -45,14 +45,6 @@ func (s *testStorage) DecryptOTP(publicID, token string) (*common.OTP, error) {
 	return otp, err
 }
 
-/*
-cccccccccccbhhtldnrtcdvghbvfgruihbglfkbrlhnv
-cccccccccccbgfngvdkfnfbnnvndjkhrruthfhbrbvgv
-cccccccccccbdbcuefnnfbtcnhujnbfrufectfdjgdlc
-cccccccccccbhgkvgcdriludrjitvihkffcreldngghe
-cccccccccccbkcdieunjfkilfuntjijkrttitutrrdgu
-
-*/
 func Test_verify(t *testing.T) {
 	apikey, err := base64.StdEncoding.DecodeString("mG5be6ZJU1qBGz24yPh/ESM3UdU=")
 	storage := &testStorage{}
@@ -121,7 +113,6 @@ func Test_verify(t *testing.T) {
 	})
 
 	t.Run("should validate signed dvorak OTP request", func(t *testing.T) {
-
 		q := url.Values{
 			"id":    []string{"2"},
 			"otp":   []string{misc.ModHexToDvorak("cccccccccccbdbcuefnnfbtcnhujnbfrufectfdjgdlc")},
@@ -360,7 +351,6 @@ func Test_verify(t *testing.T) {
 		require.Contains(t, values, "status")
 		require.Equal(t, "BAD_OTP", values["status"])
 	})
-
 }
 
 func Test_test(t *testing.T) {
@@ -440,7 +430,6 @@ func Test_ops(t *testing.T) {
 		// Assertions
 		require.Equal(t, http.StatusOK, res.StatusCode)
 		require.Equal(t, "{\"buildTime\":\"0123456789\",\"status\":\"ok\",\"version\":\"6660999\"}\n", string(body))
-
 	})
 
 	t.Run("should return health", func(t *testing.T) {
@@ -457,7 +446,6 @@ func Test_ops(t *testing.T) {
 		// Assertions
 		require.Equal(t, http.StatusOK, res.StatusCode)
 		require.Equal(t, "{\"status\":\"ok\"}\n", string(body))
-
 	})
 
 	t.Run("should return ready", func(t *testing.T) {
@@ -474,6 +462,5 @@ func Test_ops(t *testing.T) {
 		// Assertions
 		require.Equal(t, http.StatusOK, res.StatusCode)
 		require.Equal(t, "{\"status\":\"ok\"}\n", string(body))
-
 	})
 }

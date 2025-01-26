@@ -11,7 +11,7 @@ import (
 	"github.com/archaron/go-yubiserv/misc"
 )
 
-// DecryptOTP Decrypt OTP using stored private AES for specified public identifier
+// DecryptOTP Decrypt OTP using stored private AES for specified public identifier.
 func (s *Service) DecryptOTP(publicID, token string) (*common.OTP, error) {
 	log := s.log.With(
 		zap.String("public_id", publicID),
@@ -20,7 +20,7 @@ func (s *Service) DecryptOTP(publicID, token string) (*common.OTP, error) {
 
 	key, err := s.getKey(publicID)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, common.ErrStorageNoKey
 		}
 		return nil, err
@@ -48,14 +48,18 @@ func (s *Service) DecryptOTP(publicID, token string) (*common.OTP, error) {
 	}
 
 	if hex.EncodeToString(otp.PrivateID[:]) != key.PrivateID {
-		log.Error("private ID mismatch", zap.String("opt_private_id", hex.EncodeToString(otp.PrivateID[:])), zap.String("key_private_id", key.PrivateID))
+		log.Error("private ID mismatch",
+			zap.String("opt_private_id", hex.EncodeToString(otp.PrivateID[:])),
+			zap.String("key_private_id", key.PrivateID),
+		)
 		return nil, common.ErrStorageDecryptFail
 	}
 
 	return otp, err
 }
 
-func (s *Service) StoreKey(k *key) error {
+// StoreKey stores given key into database.
+func (s *Service) StoreKey(k *Key) error {
 	_, err := s.db.Exec("REPLACE INTO Keys (id, public_id, created, private_id, lock_code, aes_key, active) VALUES (?,?,?,?,?,?,?)",
 		k.ID,
 		k.PublicID,
@@ -68,9 +72,10 @@ func (s *Service) StoreKey(k *key) error {
 	return errors.Wrap(err, "cannot store key")
 }
 
-func (s *Service) GetKey(publicId string) (*key, error) {
-	key := key{}
-	row := s.db.QueryRowx("SELECT id, public_id, created, private_id, lock_code, aes_key, active FROM Keys WHERE public_id=?", publicId)
+// StoreKey retrieves key with given publicID from storage.
+func (s *Service) GetKey(publicID string) (*Key, error) {
+	key := Key{}
+	row := s.db.QueryRowx("SELECT id, public_id, created, private_id, lock_code, aes_key, active FROM Keys WHERE public_id=?", publicID)
 
 	if err := row.StructScan(&key); err != nil {
 		return nil, err
