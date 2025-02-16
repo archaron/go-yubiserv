@@ -227,9 +227,8 @@ func (s *Service) test(ctx *fasthttp.RequestCtx) {
 		requestID := fmt.Sprintf("%6d", time.Now().Unix())
 
 		b := make([]byte, common.NonceMinLength)
-		_, err := rand.Read(b)
 
-		if err != nil {
+		if _, err := rand.Read(b); err != nil {
 			s.log.Error("error generating random nonce", zap.Error(err))
 
 			return

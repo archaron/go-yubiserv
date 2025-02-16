@@ -109,18 +109,17 @@ func (s *Service) Start(ctx context.Context) error {
 			s.log.Debug("renewed vault token", zap.Duration("ttl", ttl), zap.Duration("relogin_time", reloginTime))
 
 			timer.Reset(reloginTime)
-
 		}
 	}
 }
 
 func (s *Service) login(rootCtx context.Context) error {
 	secretID := &approle.SecretID{FromString: s.secretID}
+
 	appRoleAuth, err := approle.NewAppRoleAuth(
 		s.roleID,
 		secretID,
 	)
-
 	if err != nil {
 		return errors.Wrap(err, "unable to initialize AppRole")
 	}

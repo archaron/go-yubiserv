@@ -71,8 +71,8 @@ func (s *Service) response(ctx *fasthttp.RequestCtx, status string, apiKey []byt
 	}
 
 	ctx.SetStatusCode(http.StatusOK)
-	_, err := fmt.Fprint(ctx, strings.Join(ordered, "\r\n")+"\r\n")
 
+	_, err := fmt.Fprint(ctx, strings.Join(ordered, "\r\n")+"\r\n")
 	if err != nil {
 		return fmt.Errorf("error writing response: %w", err)
 	}

@@ -45,9 +45,8 @@ func (s *Service) DecryptOTP(publicID, token string) (*common.OTP, error) {
 	}
 
 	otp := &common.OTP{}
-	err = otp.Decrypt(aesKey, binToken)
 
-	if err != nil {
+	if err = otp.Decrypt(aesKey, binToken); err != nil {
 		log.Error("AES decryption failed")
 
 		return nil, common.ErrStorageDecryptFail

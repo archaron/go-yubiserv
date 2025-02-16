@@ -11,10 +11,10 @@ linters:
     - ireturn
     - testpackage
     - paralleltest
+    - tenv
 
 linters-settings:
   govet:
-    check-shadowing: true
   golint:
     min-confidence: 0
   gocyclo:

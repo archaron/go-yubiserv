@@ -83,7 +83,5 @@ func TestOTP(t *testing.T) {
 
 		_, err = result.EncryptToModHex(aesKeyBad)
 		require.ErrorIs(t, err, aes.KeySizeError(7))
-
 	})
-
 }

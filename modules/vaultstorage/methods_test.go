@@ -15,7 +15,6 @@ import (
 var ErrWrongTestID = errors.New("test public id must be cccccccccccc")
 
 func TestStorageDecryptor(t *testing.T) {
-
 	t.Parallel()
 
 	t.Run("should decrypt test OTP", func(t *testing.T) {

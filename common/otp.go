@@ -51,7 +51,6 @@ func (o *OTP) String() string {
 
 // UnmarshalBinary unmarshalls OTP from binary bytes.
 func (o *OTP) UnmarshalBinary(data []byte) error {
-
 	if len(data) < size {
 		return ErrInvalidLength
 	}

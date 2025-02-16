@@ -47,9 +47,8 @@ func (s *Service) DecryptOTP(publicID, token string) (*common.OTP, error) {
 	}
 
 	otp := &common.OTP{}
-	err = otp.Decrypt(aesKey, binToken)
 
-	if err != nil {
+	if err = otp.Decrypt(aesKey, binToken); err != nil {
 		log.Error("AES decryption failed")
 
 		return nil, common.ErrStorageDecryptFail
@@ -69,7 +68,7 @@ func (s *Service) DecryptOTP(publicID, token string) (*common.OTP, error) {
 
 // StoreKey stores given key into database.
 func (s *Service) StoreKey(k *Key) error {
-	_, err := s.db.Exec("REPLACE INTO Keys (id, public_id, created, private_id, lock_code, aes_key, active) VALUES (?,?,?,?,?,?,?)",
+	if _, err := s.db.Exec("REPLACE INTO Keys (id, public_id, created, private_id, lock_code, aes_key, active) VALUES (?,?,?,?,?,?,?)",
 		k.ID,
 		k.PublicID,
 		k.Created,
@@ -77,9 +76,7 @@ func (s *Service) StoreKey(k *Key) error {
 		k.LockCode,
 		k.AESKey,
 		k.Active,
-	)
-
-	if err != nil {
+	); err != nil {
 		return fmt.Errorf("cannot store key: %w", err)
 	}
 

@@ -14,7 +14,6 @@ var Module = module.Module{ //nolint:gochecknoglobals
 
 // TestNewService creates new service for testing purposes.
 func TestNewService(log *zap.Logger, getterFunc KeyGetterFunc, db *sqlx.DB) *Service {
-
 	svc := &Service{log: log, getKeyFunc: getterFunc, db: db}
 
 	if getterFunc == nil {

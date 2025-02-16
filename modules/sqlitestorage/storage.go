@@ -83,7 +83,6 @@ func (s *Service) Name() string {
 
 // Defaults for the sqlite storage service.
 func Defaults(ctx *cli.Context, v *viper.Viper) error {
-
 	v.SetDefault("sqlite.dbpath", ctx.String("sqlite-dbpath"))
 
 	return nil

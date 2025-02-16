@@ -66,7 +66,6 @@ func Test_verify(t *testing.T) {
 	})
 
 	t.Run("should error on repeated OTP request", func(t *testing.T) { //nolint:paralleltest
-
 		q := url.Values{
 			"id":    []string{"1"},
 			"otp":   []string{"cccccccccccbiucvrkjiegbhidrcicvlgrcgkgurhjnj"},

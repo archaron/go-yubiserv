@@ -27,7 +27,6 @@ func TestStorageDecryptor(t *testing.T) {
 		t.Parallel()
 
 		for k, vector := range common.TestVectors {
-
 			svc := sqlitestorage.TestNewService(
 				zaptest.NewLogger(t),
 				func(publicID string) (*sqlitestorage.Key, error) {
