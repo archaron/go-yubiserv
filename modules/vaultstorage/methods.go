@@ -1,3 +1,4 @@
+// Package vaultstorage implements vault keys store.
 package vaultstorage
 
 import (
@@ -20,11 +21,12 @@ func (s *Service) DecryptOTP(publicID, token string) (*common.OTP, error) {
 		zap.String("token", token),
 	)
 
-	key, err := s.getKey(publicID)
+	key, err := s.getKeyFunc(publicID)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, common.ErrStorageNoKey
 		}
+
 		return nil, err
 	}
 
@@ -34,18 +36,20 @@ func (s *Service) DecryptOTP(publicID, token string) (*common.OTP, error) {
 
 	aesKey, err := hex.DecodeString(key.AESKey)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to decode AES key: %w", err)
 	}
 
 	binToken, err := hex.DecodeString(misc.ModHexToHex(token))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to decode token: %w", err)
 	}
 
 	otp := &common.OTP{}
 	err = otp.Decrypt(aesKey, binToken)
+
 	if err != nil {
 		log.Error("AES decryption failed")
+
 		return nil, common.ErrStorageDecryptFail
 	}
 
@@ -54,10 +58,11 @@ func (s *Service) DecryptOTP(publicID, token string) (*common.OTP, error) {
 			zap.String("opt_private_id", hex.EncodeToString(otp.PrivateID[:])),
 			zap.String("key_private_id", key.PrivateID),
 		)
+
 		return nil, common.ErrStorageDecryptFail
 	}
 
-	return otp, err
+	return otp, nil
 }
 
 // StoreKey in vault storage.
@@ -71,9 +76,8 @@ func (s *Service) StoreKey(k *Key) error {
 		data["private_id"] = k.PrivateID
 	}
 
-	_, err := s.vault.Logical().Write(path, data)
-	if err != nil {
-		return err
+	if _, err := s.vault.Logical().Write(path, data); err != nil {
+		return fmt.Errorf("vault store key: %w", err)
 	}
 
 	return nil
@@ -87,24 +91,29 @@ func (s *Service) GetKey(publicID string) (*Key, error) {
 	if err != nil {
 		var re *api.ResponseError
 		if !errors.As(err, &re) {
-			return nil, err
+			return nil, fmt.Errorf("vault get key: %w", err)
 		}
 	}
 
 	if secret == nil {
 		s.log.Warn("public_id not found in vault storage", zap.String("path", path))
-		return nil, errors.New("key not found")
+
+		return nil, common.ErrStorageNoKey
 	}
 
 	data, ok := secret.Data["data"].(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("data type assertion failed: %T %#v", secret.Data["data"], secret.Data["data"])
+		s.log.Warn("data type assertion failure in vault storage", zap.String("path", path), zap.Any("data", secret.Data))
+
+		return nil, common.ErrStorageDecryptFail
 	}
 
 	var aesKey string
+
 	if aesKey, ok = data["aes_key"].(string); !ok {
 		s.log.Warn("aes_key not found in vault storage", zap.String("path", path))
-		return nil, errors.New("key secret not found")
+
+		return nil, common.ErrStorageNoKey
 	}
 
 	var privateID string

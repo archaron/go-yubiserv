@@ -12,6 +12,13 @@ import (
 	"github.com/archaron/go-yubiserv/misc"
 )
 
+const size = 16
+
+var (
+	ErrInvalidLength = errors.New("invalid OTP length")
+	ErrInvalidCRC    = errors.New("invalid OTP CRC")
+)
+
 // OTP yubikey's otp record representation.
 type OTP struct {
 	PrivateID        [6]byte
@@ -24,7 +31,7 @@ type OTP struct {
 
 // MarshalBinary marshals OTP structure to slice of bytes.
 func (o *OTP) MarshalBinary() ([]byte, error) {
-	data := make([]byte, 16)
+	data := make([]byte, size)
 	copy(data, o.PrivateID[:])
 	binary.LittleEndian.PutUint16(data[6:8], o.UsageCounter)
 	data[8] = o.TimestampCounter[2]
@@ -44,11 +51,16 @@ func (o *OTP) String() string {
 
 // UnmarshalBinary unmarshalls OTP from binary bytes.
 func (o *OTP) UnmarshalBinary(data []byte) error {
+
+	if len(data) < size {
+		return ErrInvalidLength
+	}
+
 	// Read CRC first and check if OTP is valid
 	o.CRC = binary.LittleEndian.Uint16(data[14:16])
 
 	if crc := crc16.ChecksumCCITT(data[:14]); crc != o.CRC {
-		return fmt.Errorf("OTP CRC mismatch must be 0x%04x but is 0x%04x", o.CRC, crc)
+		return ErrInvalidCRC
 	}
 
 	// Read the remaining data
@@ -65,7 +77,7 @@ func (o *OTP) UnmarshalBinary(data []byte) error {
 func (o *OTP) Decrypt(key []byte, payload []byte) error {
 	a, err := aes.NewCipher(key)
 	if err != nil {
-		return errors.Wrap(err, "cannot create aes cipher")
+		return errors.Wrap(err, "otp: cannot create aes cipher")
 	}
 
 	decrypted := make([]byte, len(payload))
@@ -82,7 +94,7 @@ func (o *OTP) Decrypt(key []byte, payload []byte) error {
 func (o *OTP) Encrypt(key []byte) ([]byte, error) {
 	a, err := aes.NewCipher(key)
 	if err != nil {
-		return nil, errors.Wrap(err, "cannot create aes cipher")
+		return nil, errors.Wrap(err, "otp: cannot create aes cipher")
 	}
 
 	payload, _ := o.MarshalBinary() // always returns nil as error

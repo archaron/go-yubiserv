@@ -1,13 +1,17 @@
-package common
+package common_test
 
 import (
 	"encoding/base64"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/archaron/go-yubiserv/common"
 )
 
 func TestHMACSign(t *testing.T) {
+	t.Parallel()
+
 	apiKey, _ := base64.StdEncoding.DecodeString("mG5be6ZJU1qBGz24yPh/ESM3UdU=")
 	testHash := "iCV9uFJDtuyELQsxFPnR80Yj2XU="
 	testHashBin, _ := base64.StdEncoding.DecodeString(testHash)
@@ -21,10 +25,12 @@ func TestHMACSign(t *testing.T) {
 	}
 
 	t.Run("should give a right HMAC value", func(t *testing.T) {
-		require.Equal(t, testHashBin, SignMap(testMap, apiKey))
+		t.Parallel()
+		require.Equal(t, testHashBin, common.SignMap(testMap, apiKey))
 	})
 
 	t.Run("should give a right HMAC base64-encoded value", func(t *testing.T) {
-		require.Equal(t, testHash, SignMapToBase64(testMap, apiKey))
+		t.Parallel()
+		require.Equal(t, testHash, common.SignMapToBase64(testMap, apiKey))
 	})
 }

@@ -5,6 +5,8 @@ import (
 	"crypto/hmac"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -25,6 +27,7 @@ func (s *Service) verify(ctx *fasthttp.RequestCtx) {
 	if s.storage == nil {
 		s.log.Error("storage is nil, cannot verify OTP")
 		s.backendErrorResponse(ctx, nil)
+
 		return
 	}
 
@@ -83,6 +86,7 @@ func (s *Service) verify(ctx *fasthttp.RequestCtx) {
 		if hLen == 0 {
 			log.Error("missing signature H field, but have api-secret specified, rejecting request")
 			s.paramMissingResponse(ctx, extra)
+
 			return
 		}
 
@@ -135,6 +139,13 @@ func (s *Service) verify(ctx *fasthttp.RequestCtx) {
 	otpData, err := s.storage.DecryptOTP(publicID, matches[0][2])
 	if err != nil {
 		log.Error("error decrypting OTP", zap.Error(err))
+
+		if errors.Is(err, common.ErrStorageNoKey) {
+			s.noSuchClientResponse(ctx, extra)
+
+			return
+		}
+
 		s.badOTPResponse(ctx, extra)
 
 		return
@@ -161,6 +172,7 @@ func (s *Service) verify(ctx *fasthttp.RequestCtx) {
 				zap.Uint16("otp_usage_counter", otpData.UsageCounter),
 			)
 			s.replayedOTPResponse(ctx, extra)
+
 			return
 		}
 
@@ -179,7 +191,7 @@ func (s *Service) verify(ctx *fasthttp.RequestCtx) {
 }
 
 func (s *Service) version(ctx *fasthttp.RequestCtx) {
-	s.jsonResponse(ctx, 200, map[string]interface{}{
+	s.jsonResponse(ctx, http.StatusOK, map[string]interface{}{
 		"version":   s.settings.BuildVersion,
 		"buildTime": s.settings.BuildTime,
 		"status":    "ok",
@@ -187,13 +199,13 @@ func (s *Service) version(ctx *fasthttp.RequestCtx) {
 }
 
 func (s *Service) health(ctx *fasthttp.RequestCtx) {
-	s.jsonResponse(ctx, 200, map[string]interface{}{
+	s.jsonResponse(ctx, http.StatusOK, map[string]interface{}{
 		"status": "ok",
 	})
 }
 
 func (s *Service) readiness(ctx *fasthttp.RequestCtx) {
-	s.jsonResponse(ctx, 200, map[string]interface{}{
+	s.jsonResponse(ctx, http.StatusOK, map[string]interface{}{
 		"status": "ok",
 	})
 }
@@ -204,7 +216,7 @@ type TestResponseParams struct {
 }
 
 func (s *Service) test(ctx *fasthttp.RequestCtx) {
-	ctx.SetStatusCode(200)
+	ctx.SetStatusCode(http.StatusOK)
 	ctx.SetContentType("text/html")
 
 	params := TestResponseParams{}
@@ -213,14 +225,16 @@ func (s *Service) test(ctx *fasthttp.RequestCtx) {
 	if len(otp) > 0 {
 		requestID := fmt.Sprintf("%6d", time.Now().Unix())
 
-		b := make([]byte, 16)
+		b := make([]byte, common.NonceMinLength)
 		_, err := rand.Read(b)
 
 		if err != nil {
+			s.log.Error("error generating random nonce", zap.Error(err))
+
 			return
 		}
 
-		nonce := fmt.Sprintf("%x", b)[:32]
+		nonce := hex.EncodeToString(b)
 
 		data := []string{
 			"id=" + requestID,
@@ -237,9 +251,10 @@ func (s *Service) test(ctx *fasthttp.RequestCtx) {
 			"h":     []string{signature},
 		}
 
-		req, err := http.NewRequest(http.MethodGet, "http://test/wsapi/2.0/verify/?"+q.Encode(), nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://test/wsapi/2.0/verify/?"+q.Encode(), nil)
 		if err != nil {
 			s.log.Error("error creating test request", zap.Error(err))
+
 			return
 		}
 
@@ -260,7 +275,7 @@ func (s *Service) test(ctx *fasthttp.RequestCtx) {
 		params.Result = string(body)
 	}
 
-	err := templates.IndexTemplate.Execute(ctx, params)
+	err := templates.IndexTemplate().Execute(ctx, params)
 	if err != nil {
 		s.log.Error("error executing test template", zap.Error(err))
 	}

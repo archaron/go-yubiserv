@@ -34,3 +34,10 @@ const (
 	// ResponseCodeReplayedRequest is sent when request is replayed.
 	ResponseCodeReplayedRequest = "REPLAYED_REQUEST"
 )
+
+var (
+	_ = ResponseCodeNotEnoughAnswers
+	_ = ResponseCodeReplayedRequest
+	_ = ResponseCodeOperationNotAllowed
+	_ = ResponseCodeDelayedOTP
+)

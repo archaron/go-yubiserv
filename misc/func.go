@@ -3,6 +3,7 @@ package misc
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"regexp"
 	"strings"
 )
@@ -27,17 +28,19 @@ func HexToModHex(hex string) string {
 		'e': 'u',
 		'f': 'v',
 	}
+
 	return strings.Map(func(r rune) rune {
 		if c, ok := hexmod[r]; ok {
 			return c
 		}
+
 		return 0
 	}, hex)
 }
 
 // DvorakToModHex converts OPT in Dvorak keyboard layout to standard modhex OTP.
 func DvorakToModHex(dvModHex string) string {
-	var d2modhex = map[rune]rune{ //nolint:gochecknoglobals
+	d2modhex := map[rune]rune{
 		'j': 'c',
 		'x': 'b',
 		'e': 'd',
@@ -55,17 +58,19 @@ func DvorakToModHex(dvModHex string) string {
 		'g': 'u',
 		'k': 'v',
 	}
+
 	return strings.Map(func(r rune) rune {
 		if c, ok := d2modhex[r]; ok {
 			return c
 		}
+
 		return 0
 	}, dvModHex)
 }
 
 // ModHexToDvorak converts OPT in Modhex to Dvorak keyboard layout OTP.
 func ModHexToDvorak(dvModHex string) string {
-	var modhex2d = map[rune]rune{ //nolint:gochecknoglobals
+	modhex2d := map[rune]rune{
 		'c': 'j',
 		'b': 'x',
 		'd': 'e',
@@ -83,10 +88,12 @@ func ModHexToDvorak(dvModHex string) string {
 		'u': 'g',
 		'v': 'k',
 	}
+
 	return strings.Map(func(r rune) rune {
 		if c, ok := modhex2d[r]; ok {
 			return c
 		}
+
 		return 0
 	}, dvModHex)
 }
@@ -111,10 +118,12 @@ func ModHexToHex(modHex string) string {
 		'u': 'e',
 		'v': 'f',
 	}
+
 	return strings.Map(func(r rune) rune {
 		if c, ok := modhex[r]; ok {
 			return c
 		}
+
 		return 0
 	}, modHex)
 }
@@ -124,8 +133,9 @@ func Rand(count int) ([]byte, error) {
 	buf := make([]byte, count)
 
 	if _, err := rand.Read(buf); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("rand.Read: %w", err)
 	}
+
 	return buf, nil
 }
 
@@ -135,6 +145,7 @@ func HexRand(count int) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	return hex.EncodeToString(buf), nil
 }
 

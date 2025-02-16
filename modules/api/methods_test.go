@@ -1,4 +1,4 @@
-package api
+package api_test
 
 import (
 	"context"
@@ -19,6 +19,7 @@ import (
 
 	"github.com/archaron/go-yubiserv/common"
 	"github.com/archaron/go-yubiserv/misc"
+	"github.com/archaron/go-yubiserv/modules/api"
 )
 
 type testStorage struct{}
@@ -318,14 +319,14 @@ func decodeAnswer(t *testing.T, body []byte) map[string]string {
 	return values
 }
 
-func createTestService(t *testing.T, storage common.StorageInterface) *Service {
+func createTestService(t *testing.T, storage common.StorageInterface) *api.Service {
 	t.Helper()
 
 	apikey, err := base64.StdEncoding.DecodeString("mG5be6ZJU1qBGz24yPh/ESM3UdU=")
 	require.NoError(t, err)
 
 	// Create test router
-	svc := &Service{
+	svc := &api.Service{
 		log:     zaptest.NewLogger(t),
 		apiKey:  apikey,
 		storage: storage,
@@ -338,7 +339,7 @@ func createTestService(t *testing.T, storage common.StorageInterface) *Service {
 	return svc
 }
 
-func verifyRequest(t *testing.T, q url.Values, svc *Service) map[string]string {
+func verifyRequest(t *testing.T, q url.Values, svc *api.Service) map[string]string {
 	t.Helper()
 
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://test/wsapi/2.0/verify/?"+q.Encode(), nil)

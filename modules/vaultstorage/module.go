@@ -2,15 +2,31 @@ package vaultstorage
 
 import (
 	"errors"
+	"fmt"
 	"os"
 
 	"github.com/im-kulikov/helium/module"
+	"go.uber.org/zap"
 )
 
-// Module storage constructor
-// nolint:gochecknoglobals
-var Module = module.Module{
+const (
+	roleLength   = 36
+	secretLength = 36
+)
+
+// Module storage constructor.
+var Module = module.Module{ //nolint:gochecknoglobals
 	{Constructor: newService},
+}
+
+var (
+	ErrInvalidRoleLength   = errors.New("invalid role_id length")
+	ErrInvalidSecretLength = errors.New("invalid secret_id length")
+)
+
+// NewTestService creates new service for testing purposes.
+func NewTestService(log *zap.Logger, getterFunc KeyGetterFunc) (*Service, error) {
+	return &Service{log: log, getKeyFunc: getterFunc}, nil
 }
 
 func newService(p serviceParams) (serviceOutParams, error) {
@@ -21,17 +37,18 @@ func newService(p serviceParams) (serviceOutParams, error) {
 	}
 
 	// Default Key fetcher
-	svc.getKey = svc.GetKey
+	svc.getKeyFunc = svc.GetKey
 
 	if svc.roleID = p.Config.GetString("vault.role_id"); svc.roleID == "" {
 		roleFile := p.Config.GetString("vault.role_file")
+
 		rawRole, err := os.ReadFile(roleFile)
 		if err != nil {
-			return serviceOutParams{}, err
+			return serviceOutParams{}, fmt.Errorf("cannot read role_id file: %w", err)
 		}
 
-		if len(rawRole) != 36 {
-			return serviceOutParams{}, errors.New("invalid role_id length")
+		if len(rawRole) != roleLength {
+			return serviceOutParams{}, ErrInvalidRoleLength
 		}
 
 		svc.roleID = string(rawRole)
@@ -39,13 +56,14 @@ func newService(p serviceParams) (serviceOutParams, error) {
 
 	if svc.secretID = p.Config.GetString("vault.secret_id"); svc.secretID == "" {
 		secretFile := p.Config.GetString("vault.secret_file")
+
 		rawSecret, err := os.ReadFile(secretFile)
 		if err != nil {
-			return serviceOutParams{}, err
+			return serviceOutParams{}, fmt.Errorf("cannot read secret_id file: %w", err)
 		}
 
-		if len(rawSecret) != 36 {
-			return serviceOutParams{}, errors.New("invalid secret_id length")
+		if len(rawSecret) != secretLength {
+			return serviceOutParams{}, ErrInvalidSecretLength
 		}
 
 		svc.secretID = string(rawSecret)

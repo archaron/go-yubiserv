@@ -17,7 +17,7 @@ import (
 )
 
 // SignMap - signs specified strings slice with given apiKey.
-// @return []byte Raw HMAC signature
+// @return []byte Raw HMAC signature.
 func SignMap(m []string, apiKey []byte) []byte {
 	mc := make([]string, len(m))
 	copy(mc, m)
@@ -25,11 +25,12 @@ func SignMap(m []string, apiKey []byte) []byte {
 	payload := strings.Join(mc, "&")
 	h := hmac.New(sha1.New, apiKey)
 	h.Write([]byte(payload))
+
 	return h.Sum(nil)
 }
 
 // SignMapToBase64 - signs specified strings slice with given apiKey.
-// @return []byte Base64-encoded HMAC signature
+// @return []byte Base64-encoded HMAC signature.
 func SignMapToBase64(m []string, apiKey []byte) string {
 	return base64.StdEncoding.EncodeToString(SignMap(m, apiKey))
 }
@@ -44,7 +45,7 @@ func Serve(handler fasthttp.RequestHandler, req *http.Request) (*http.Response, 
 	go func() {
 		err := fasthttp.Serve(ln, handler)
 		if err != nil {
-			panic(fmt.Errorf("failed to Serve: %v", err))
+			panic(fmt.Sprintf("failed to Serve: %v", err))
 		}
 	}()
 
@@ -56,5 +57,5 @@ func Serve(handler fasthttp.RequestHandler, req *http.Request) (*http.Response, 
 		},
 	}
 
-	return client.Do(req)
+	return client.Do(req) //nolint:wrapcheck
 }

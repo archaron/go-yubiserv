@@ -1,4 +1,4 @@
-package common
+package common_test
 
 import (
 	"crypto/aes"
@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/archaron/go-yubiserv/common"
 	"github.com/archaron/go-yubiserv/misc"
 )
 
@@ -16,11 +17,11 @@ func TestOTP(t *testing.T) {
 	t.Run("decrypt test", func(t *testing.T) {
 		t.Parallel()
 
-		for k, vector := range TestVectors {
+		for k, vector := range common.TestVectors {
 			binPayload, err := hex.DecodeString(misc.ModHexToHex(k))
 			require.NoError(t, err, "cannot decode hex payload")
 
-			result := &OTP{}
+			result := &common.OTP{}
 
 			require.NoError(t, result.Decrypt(vector.AESKey, binPayload), "cannot decrypt OTP '%s'", k)
 			require.NotNil(t, result)
@@ -32,7 +33,7 @@ func TestOTP(t *testing.T) {
 	t.Run("EncryptToModHex test", func(t *testing.T) {
 		t.Parallel()
 
-		for k, vector := range TestVectors {
+		for k, vector := range common.TestVectors {
 			result, err := vector.OTP.EncryptToModHex(vector.AESKey)
 			require.NoError(t, err, "cannot encrypt OTP '%s'", k)
 			require.Equal(t, k, result)
@@ -47,7 +48,7 @@ func TestOTP(t *testing.T) {
 		require.NoError(t, err)
 
 		for i := range uint8(5) {
-			otp := &OTP{
+			otp := &common.OTP{
 				PrivateID:        [6]byte{0, 1, 2, 3, 4, 5},
 				UsageCounter:     uint16(i),
 				TimestampCounter: [3]byte{i, i, i},
@@ -57,8 +58,6 @@ func TestOTP(t *testing.T) {
 			result, err := otp.EncryptToModHex(aesKey)
 			require.NoError(t, err, "cannot encrypt OTP '%s'", otp)
 			require.NotEmpty(t, result, "empty cannot encrypt OTP '%s'", otp)
-
-			// fmt.Println(result)
 		}
 	})
 
@@ -71,7 +70,7 @@ func TestOTP(t *testing.T) {
 		aesOK := []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f}
 		aesWrong := []byte{0xff, 0xff, 0xff, 0xff, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0xff}
 		aesKeyBad := []byte{0xfe, 0xed, 0x00, 0xda, 0x00, 0xba, 0xbe}
-		result := &OTP{}
+		result := &common.OTP{}
 
 		require.NoError(t, result.Decrypt(aesOK, binPayload))
 		require.Error(t, result.Decrypt(aesWrong, binPayload))

@@ -1,4 +1,4 @@
-package vaultstorage
+package vaultstorage_test
 
 import (
 	"encoding/hex"
@@ -9,31 +9,35 @@ import (
 	"go.uber.org/zap/zaptest"
 
 	"github.com/archaron/go-yubiserv/common"
+	"github.com/archaron/go-yubiserv/modules/vaultstorage"
 )
 
 func TestStorageDecryptor(t *testing.T) {
-	svc := Service{
-		log: zaptest.NewLogger(t),
-	}
+
+	t.Parallel()
 
 	t.Run("should decrypt test OTP", func(t *testing.T) {
+		t.Parallel()
 		for k, vector := range common.TestVectors {
-			// Test stub
-			svc.getKey = func(publicID string) (*Key, error) {
-				if publicID != "cccccccccccc" {
-					return nil, errors.New("test public id must be cccccccccccc")
-				}
+			svc, err := vaultstorage.NewTestService(
+				zaptest.NewLogger(t),
+				func(publicID string) (*vaultstorage.Key, error) {
+					if publicID != "cccccccccccc" {
+						return nil, errors.New("test public id must be cccccccccccc")
+					}
 
-				return &Key{
-					ID:        1,
-					PublicID:  "cccccccccccc",
-					Created:   "",
-					PrivateID: hex.EncodeToString(vector.PrivateID[:]),
-					AESKey:    hex.EncodeToString(vector.AESKey),
-					LockCode:  "010203040506",
-					Active:    true,
-				}, nil
-			}
+					return &vaultstorage.Key{
+						ID:        1,
+						PublicID:  "cccccccccccc",
+						Created:   "",
+						PrivateID: hex.EncodeToString(vector.PrivateID[:]),
+						AESKey:    hex.EncodeToString(vector.AESKey),
+						LockCode:  "010203040506",
+						Active:    true,
+					}, nil
+				},
+			)
+			require.NoError(t, err)
 
 			otp, err := svc.DecryptOTP("cccccccccccc", k)
 			require.NoError(t, err, "cannot decrypt OTP '%s'", k)
@@ -44,6 +48,9 @@ func TestStorageDecryptor(t *testing.T) {
 }
 
 func TestStorageDB(t *testing.T) {
+
+	t.Parallel()
+
 	// var err error
 	// svc := Service{
 	// 	 log: zaptest.NewLogger(t),

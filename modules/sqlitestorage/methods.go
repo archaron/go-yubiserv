@@ -3,6 +3,7 @@ package sqlitestorage
 import (
 	"database/sql"
 	"encoding/hex"
+	"fmt"
 
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -18,11 +19,12 @@ func (s *Service) DecryptOTP(publicID, token string) (*common.OTP, error) {
 		zap.String("token", token),
 	)
 
-	key, err := s.getKey(publicID)
+	key, err := s.getKeyFunc(publicID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, common.ErrStorageNoKey
 		}
+
 		return nil, err
 	}
 
@@ -32,18 +34,24 @@ func (s *Service) DecryptOTP(publicID, token string) (*common.OTP, error) {
 
 	aesKey, err := hex.DecodeString(key.AESKey)
 	if err != nil {
-		return nil, err
+		s.log.Error("failed to decode AES key", zap.Error(err))
+
+		return nil, common.ErrStorageDecryptFail
 	}
 
 	binToken, err := hex.DecodeString(misc.ModHexToHex(token))
 	if err != nil {
-		return nil, err
+		s.log.Error("failed to decode token", zap.Error(err))
+
+		return nil, common.ErrStorageDecryptFail
 	}
 
 	otp := &common.OTP{}
 	err = otp.Decrypt(aesKey, binToken)
+
 	if err != nil {
 		log.Error("AES decryption failed")
+
 		return nil, common.ErrStorageDecryptFail
 	}
 
@@ -52,10 +60,11 @@ func (s *Service) DecryptOTP(publicID, token string) (*common.OTP, error) {
 			zap.String("opt_private_id", hex.EncodeToString(otp.PrivateID[:])),
 			zap.String("key_private_id", key.PrivateID),
 		)
+
 		return nil, common.ErrStorageDecryptFail
 	}
 
-	return otp, err
+	return otp, nil
 }
 
 // StoreKey stores given key into database.
@@ -69,18 +78,29 @@ func (s *Service) StoreKey(k *Key) error {
 		k.AESKey,
 		k.Active,
 	)
-	return errors.Wrap(err, "cannot store key")
+
+	if err != nil {
+		return fmt.Errorf("cannot store key: %w", err)
+	}
+
+	return nil
 }
 
-// StoreKey retrieves key with given publicID from storage.
+// GetKey retrieves key with given publicID from storage.
 func (s *Service) GetKey(publicID string) (*Key, error) {
 	key := Key{}
 	row := s.db.QueryRowx("SELECT id, public_id, created, private_id, lock_code, aes_key, active FROM Keys WHERE public_id=?", publicID)
 
 	if err := row.StructScan(&key); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot get key: %w", err)
 	}
+
 	return &key, nil
+}
+
+// TestCreateDatabase creates a new database for testing.
+func (s *Service) TestCreateDatabase() error {
+	return s.createDatabase()
 }
 
 func (s *Service) createDatabase() error {
@@ -98,5 +118,6 @@ func (s *Service) createDatabase() error {
 	if err != nil {
 		return errors.Wrap(err, "failed to create table")
 	}
+
 	return nil
 }

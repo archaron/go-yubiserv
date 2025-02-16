@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -48,9 +49,15 @@ func (s *Service) okResponse(ctx *fasthttp.RequestCtx, extra map[string]string) 
 	}
 }
 
+func (s *Service) noSuchClientResponse(ctx *fasthttp.RequestCtx, extra map[string]string) {
+	if err := s.response(ctx, ResponseCodeNoSuchClient, s.apiKey, extra); err != nil {
+		s.log.Error("error sending no such client response", zap.Error(err))
+	}
+}
+
 func (s *Service) response(ctx *fasthttp.RequestCtx, status string, apiKey []byte, extra map[string]string) error {
 	// Create ordered pieces
-	ordered := make([]string, 0, 5)
+	ordered := make([]string, 0)
 
 	ordered = append(ordered, "t="+strings.ReplaceAll(time.Now().In(s.gmtLocation).Format("2006-01-02T15:04:05Z0.000"), ".", ""))
 
@@ -63,9 +70,14 @@ func (s *Service) response(ctx *fasthttp.RequestCtx, status string, apiKey []byt
 		ordered = append([]string{"h=" + common.SignMapToBase64(ordered, apiKey)}, ordered...) // Add signature
 	}
 
-	ctx.SetStatusCode(200)
+	ctx.SetStatusCode(http.StatusOK)
 	_, err := fmt.Fprint(ctx, strings.Join(ordered, "\r\n")+"\r\n")
-	return err
+
+	if err != nil {
+		return fmt.Errorf("error writing response: %w", err)
+	}
+
+	return nil
 }
 
 func (s *Service) jsonResponse(ctx *fasthttp.RequestCtx, statusCode int, payload map[string]interface{}) {

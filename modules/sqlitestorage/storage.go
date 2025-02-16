@@ -18,6 +18,8 @@ import (
 )
 
 type (
+	KeyGetterFunc func(publicID string) (*Key, error)
+
 	serviceParams struct {
 		dig.In
 
@@ -33,9 +35,9 @@ type (
 
 	// Service for SQLite database storage.
 	Service struct {
-		log    *zap.Logger
-		getKey func(publicID string) (*Key, error)
-		db     *sqlx.DB
+		log        *zap.Logger
+		getKeyFunc KeyGetterFunc
+		db         *sqlx.DB
 
 		dbPath string
 		sync.Mutex
@@ -45,25 +47,26 @@ type (
 // Start the storage service.
 func (s *Service) Start(ctx context.Context) error {
 	var err error
+
 	s.log.Debug("keys storage start", zap.String("db_path", s.dbPath))
 
-	s.db, err = sqlx.Open("sqlite3", fmt.Sprintf("%s?mode=rwc&cache=shared", s.dbPath))
+	s.db, err = sqlx.Open("sqlite3", s.dbPath+"?mode=rwc&cache=shared")
 	if err != nil {
 		return errors.Wrap(err, "failed to open database")
 	}
 
 	// Ensure database is created
 	if err := s.db.Ping(); err != nil {
-		return err
+		return fmt.Errorf("could not connect to database: %w", err)
 	}
 
 	if err := s.createDatabase(); err != nil {
-		return err
+		return fmt.Errorf("could not create database: %w", err)
 	}
 
 	<-ctx.Done()
 
-	return ctx.Err()
+	return nil
 }
 
 // Stop the storage service.
@@ -80,7 +83,8 @@ func (s *Service) Name() string {
 
 // Defaults for the sqlite storage service.
 func Defaults(ctx *cli.Context, v *viper.Viper) error {
-	fmt.Println("db=", ctx.String("sqlite-dbpath"))
+
 	v.SetDefault("sqlite.dbpath", ctx.String("sqlite-dbpath"))
+
 	return nil
 }

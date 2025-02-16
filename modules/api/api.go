@@ -36,7 +36,6 @@ type (
 		gmtLocation *time.Location
 		storage     common.StorageInterface
 
-		ctx    context.Context
 		cancel context.CancelFunc
 
 		apiKey  []byte
@@ -56,9 +55,13 @@ func (s *Service) Printf(format string, args ...interface{}) {
 }
 
 // Start API service.
-func (s *Service) Start(ctx context.Context) error {
-	s.ctx, s.cancel = context.WithCancel(ctx)
+func (s *Service) Start(parentCtx context.Context) error {
+	var ctx context.Context
+
+	ctx, s.cancel = context.WithCancel(parentCtx)
+
 	var err error
+
 	s.listener = &fasthttp.Server{
 		Handler:      s.requestHandler,
 		ReadTimeout:  s.timeout,
@@ -68,18 +71,20 @@ func (s *Service) Start(ctx context.Context) error {
 
 	s.gmtLocation, err = time.LoadLocation("GMT")
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to load GMT: %w", err)
 	}
 
 	if s.cert != "" && s.key != "" {
-		s.log.Debug("listen in secured TLS mode", zap.String("address", s.address))
+		s.log.Info("listen in secured TLS mode", zap.String("address", s.address))
+
 		go func() {
 			if err = s.listener.ListenAndServeTLS(s.address, s.cert, s.key); err != nil {
 				s.log.Fatal("api tls listen error", zap.Error(err))
 			}
 		}()
 	} else {
-		s.log.Debug("listen in unsecured HTTP mode", zap.String("address", s.address))
+		s.log.Info("listen in unsecured HTTP mode", zap.String("address", s.address))
+
 		go func() {
 			if err = s.listener.ListenAndServe(s.address); err != nil {
 				s.log.Fatal("api listen error", zap.Error(err))
@@ -92,15 +97,17 @@ func (s *Service) Start(ctx context.Context) error {
 		s.log.Info("error sending systemd ready notify")
 	}
 
-	s.Watchdog(s.ctx)
+	s.Watchdog(ctx)
 
-	<-s.ctx.Done()
-	return s.ctx.Err()
+	<-ctx.Done()
+
+	return nil
 }
 
 // Stop API service.
 func (s *Service) Stop(_ context.Context) {
 	defer s.cancel()
+
 	// Notify systemd app is stopping
 	if _, err := daemon.SdNotify(false, daemon.SdNotifyStopping); err != nil {
 		s.log.Info("error sending systemd ready notify")
@@ -121,12 +128,14 @@ func (s *Service) requestHandler(ctx *fasthttp.RequestCtx) {
 	switch string(ctx.Path()) {
 	case "/wsapi/2.0/verify":
 		s.verify(ctx)
+
 		return
 
 	case "/version":
 		s.version(ctx)
+
 		return
-	case "/rediness":
+	case "/readiness":
 		// Perform state checks, and report readiness status
 		s.readiness(ctx)
 
@@ -136,8 +145,10 @@ func (s *Service) requestHandler(ctx *fasthttp.RequestCtx) {
 
 	case "/":
 		s.test(ctx)
+
 	default:
 		ctx.Error("Unsupported path", fasthttp.StatusNotFound)
+
 		return
 	}
 }

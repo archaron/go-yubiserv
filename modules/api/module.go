@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/base64"
 	"errors"
+	"fmt"
 
 	"github.com/im-kulikov/helium/module"
 	"github.com/im-kulikov/helium/service"
@@ -14,10 +15,13 @@ import (
 )
 
 // Module api constructor
-// nolint:gochecknoglobals
-var Module = module.Module{
+var Module = module.Module{ //nolint:gochecknoglobals
 	{Constructor: newAPIService, Options: []dig.ProvideOption{dig.Group("services")}},
 }
+
+var (
+	ErrTLSParams = errors.New("both tls certificate file and private key file must be set to enable TLS")
+)
 
 func newAPIService(p serviceParams) (service.Service, error) {
 	var (
@@ -34,7 +38,7 @@ func newAPIService(p serviceParams) (service.Service, error) {
 	if len(key) > 0 {
 		apiKey, err = base64.StdEncoding.DecodeString(key)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to decode api key: %w", err)
 		}
 	}
 
@@ -63,9 +67,11 @@ func Defaults(ctx *cli.Context, v *viper.Viper) error {
 	tlsCert := ctx.String("api-tls-cert")
 	tlsKey := ctx.String("api-tls-key")
 
+	// If TLS enabled (specified cert or key)
 	if tlsCert != "" || tlsKey != "" {
+		// Check if both fields filled
 		if tlsCert == "" || tlsKey == "" {
-			return errors.New("both tls certificate file and private key file must be set to enable TLS")
+			return ErrTLSParams
 		}
 	}
 

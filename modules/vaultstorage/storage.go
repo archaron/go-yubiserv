@@ -18,6 +18,8 @@ import (
 )
 
 type (
+	KeyGetterFunc func(publicID string) (*Key, error)
+
 	serviceParams struct {
 		dig.In
 
@@ -33,8 +35,8 @@ type (
 
 	// Service for vault storage.
 	Service struct {
-		log    *zap.Logger
-		getKey func(publicID string) (*Key, error)
+		log        *zap.Logger
+		getKeyFunc KeyGetterFunc
 
 		vault      *vault.Client
 		vaultToken *vault.Secret
@@ -43,8 +45,6 @@ type (
 		roleID, secretID string
 		vaultPath        string
 
-		ctx context.Context
-
 		sync.Mutex
 	}
 )
@@ -52,8 +52,6 @@ type (
 // Start storage service.
 func (s *Service) Start(ctx context.Context) error {
 	var err error
-
-	s.ctx = ctx
 
 	s.log.Debug("vault keys storage start", zap.String("address", s.address))
 
@@ -65,7 +63,7 @@ func (s *Service) Start(ctx context.Context) error {
 		return errors.Wrap(err, "unable to initialize Vault client")
 	}
 
-	if err = s.login(); err != nil {
+	if err = s.login(ctx); err != nil {
 		return err
 	}
 
@@ -84,7 +82,7 @@ func (s *Service) Start(ctx context.Context) error {
 			return ctx.Err()
 		case <-timer.C:
 			s.log.Debug("relogin to renew vault access token")
-			if err = s.login(); err != nil {
+			if err = s.login(ctx); err != nil {
 				s.log.Error("cannot relogin to vault, will retry in 60 sec", zap.Error(err))
 				timer.Reset(60 * time.Second)
 			} else {
@@ -102,7 +100,7 @@ func (s *Service) Start(ctx context.Context) error {
 	}
 }
 
-func (s *Service) login() error {
+func (s *Service) login(rootCtx context.Context) error {
 	secretID := &approle.SecretID{FromString: s.secretID}
 	appRoleAuth, err := approle.NewAppRoleAuth(
 		s.roleID,
@@ -112,7 +110,7 @@ func (s *Service) login() error {
 		return errors.Wrap(err, "unable to initialize AppRole")
 	}
 
-	ctx, cancel := context.WithTimeout(s.ctx, 10*time.Second)
+	ctx, cancel := context.WithTimeout(rootCtx, 10*time.Second)
 	defer cancel()
 
 	authInfo, err := s.vault.Auth().Login(ctx, appRoleAuth)

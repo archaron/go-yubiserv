@@ -38,9 +38,3 @@ linters-settings:
     min-complexity: 6
   gocognit:
     min-complexity: 35
-
-issues:
-  exclude-use-default: false
-  exclude:
-    # gochecknoglobals: allow version variable
-    - "`version` is a global variable"

@@ -1,4 +1,4 @@
-package sqlitestorage
+package sqlitestorage_test
 
 import (
 	"encoding/hex"
@@ -9,36 +9,37 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
+
 	"go.uber.org/zap/zaptest"
 	"golang.org/x/exp/rand"
 
 	"github.com/archaron/go-yubiserv/common"
 	"github.com/archaron/go-yubiserv/misc"
+	"github.com/archaron/go-yubiserv/modules/sqlitestorage"
 )
 
 func TestStorageDecryptor(t *testing.T) {
-	svc := Service{
-		log: zaptest.NewLogger(t),
-	}
 
 	t.Run("should decrypt test OTP", func(t *testing.T) {
 		for k, vector := range common.TestVectors {
-			// Test stub
-			svc.getKey = func(publicID string) (*Key, error) {
-				if publicID != "cccccccccccc" {
-					return nil, errors.New("test public id must be cccccccccccc")
-				}
 
-				return &Key{
-					ID:        1,
-					PublicID:  "cccccccccccc",
-					Created:   "",
-					PrivateID: hex.EncodeToString(vector.PrivateID[:]),
-					AESKey:    hex.EncodeToString(vector.AESKey),
-					LockCode:  "010203040506",
-					Active:    true,
-				}, nil
-			}
+			svc := sqlitestorage.TestNewService(
+				zaptest.NewLogger(t),
+				func(publicID string) (*sqlitestorage.Key, error) {
+					if publicID != "cccccccccccc" {
+						return nil, errors.New("test public id must be cccccccccccc")
+					}
+
+					return &sqlitestorage.Key{
+						ID:        1,
+						PublicID:  "cccccccccccc",
+						Created:   "",
+						PrivateID: hex.EncodeToString(vector.PrivateID[:]),
+						AESKey:    hex.EncodeToString(vector.AESKey),
+						LockCode:  "010203040506",
+						Active:    true,
+					}, nil
+				}, nil)
 
 			otp, err := svc.DecryptOTP("cccccccccccc", k)
 			require.NoError(t, err, "cannot decrypt OTP '%s'", k)
@@ -50,21 +51,21 @@ func TestStorageDecryptor(t *testing.T) {
 
 func TestStorageDB(t *testing.T) {
 	var err error
-	svc := Service{
-		log: zaptest.NewLogger(t),
-	}
 
-	svc.db, err = sqlx.Open("sqlite3", "file:test.db?cache=shared&mode=memory")
+	db, err := sqlx.Open("sqlite3", "file:test.db?cache=shared&mode=memory")
 	require.NoError(t, err, "failed to create in-memory database")
+
 	defer func() {
-		require.NoError(t, svc.db.Close())
+		require.NoError(t, db.Close())
 	}()
 
+	svc := sqlitestorage.TestNewService(zaptest.NewLogger(t), nil, db)
+
 	// Ensure database is created
-	require.NoError(t, svc.db.Ping(), "failed to ping in-memory database")
+	require.NoError(t, db.Ping(), "failed to ping in-memory database")
 
 	t.Run("should create tables", func(t *testing.T) {
-		require.NoError(t, svc.createDatabase(), "cannot ensure needed tables")
+		require.NoError(t, svc.TestCreateDatabase(), "cannot ensure needed tables")
 	})
 
 	// Generate some ID for testing
@@ -87,7 +88,7 @@ func TestStorageDB(t *testing.T) {
 
 	publicID := misc.HexToModHex(fmt.Sprintf("%012x", keyID))
 
-	testKey := &Key{
+	testKey := &sqlitestorage.Key{
 		ID:        keyID,
 		PublicID:  publicID,
 		PrivateID: hex.EncodeToString(privateBuf),

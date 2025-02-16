@@ -16,7 +16,6 @@ require (
 	go.uber.org/dig v1.18.0
 	go.uber.org/zap v1.27.0
 	golang.org/x/exp v0.0.0-20250106191152-7588d65b2ba8
-	gopkg.in/errgo.v2 v2.1.0
 )
 
 require (
