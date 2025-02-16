@@ -7,7 +7,7 @@ import (
 
 	"github.com/im-kulikov/helium/service"
 	"github.com/jmoiron/sqlx"
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/mattn/go-sqlite3" //goland:noinspection GoLinter
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
 	"github.com/urfave/cli/v2"

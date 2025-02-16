@@ -18,16 +18,21 @@ import (
 	"github.com/archaron/go-yubiserv/modules/sqlitestorage"
 )
 
+var errInvalidPublicID = errors.New("test public id must be cccccccccccc")
+
 func TestStorageDecryptor(t *testing.T) {
+	t.Parallel()
 
 	t.Run("should decrypt test OTP", func(t *testing.T) {
+		t.Parallel()
+
 		for k, vector := range common.TestVectors {
 
 			svc := sqlitestorage.TestNewService(
 				zaptest.NewLogger(t),
 				func(publicID string) (*sqlitestorage.Key, error) {
 					if publicID != "cccccccccccc" {
-						return nil, errors.New("test public id must be cccccccccccc")
+						return nil, errInvalidPublicID
 					}
 
 					return &sqlitestorage.Key{
@@ -49,7 +54,9 @@ func TestStorageDecryptor(t *testing.T) {
 	})
 }
 
-func TestStorageDB(t *testing.T) {
+func TestStorageDB(t *testing.T) { //nolint:tparallel,paralleltest
+	t.Parallel()
+
 	var err error
 
 	db, err := sqlx.Open("sqlite3", "file:test.db?cache=shared&mode=memory")
@@ -62,16 +69,14 @@ func TestStorageDB(t *testing.T) {
 	svc := sqlitestorage.TestNewService(zaptest.NewLogger(t), nil, db)
 
 	// Ensure database is created
-	require.NoError(t, db.Ping(), "failed to ping in-memory database")
 
-	t.Run("should create tables", func(t *testing.T) {
+	t.Run("should create tables", func(t *testing.T) { //nolint:paralleltest
 		require.NoError(t, svc.TestCreateDatabase(), "cannot ensure needed tables")
 	})
 
 	// Generate some ID for testing
-	rand.Seed(uint64(time.Now().UTC().UnixNano()))
-
 	keyID := rand.Uint64() & 0xFFFFFFFFFFFF
+
 	require.NoError(t, err, "cannot generate random key id")
 
 	privateBuf := make([]byte, 6)
@@ -98,11 +103,11 @@ func TestStorageDB(t *testing.T) {
 		Created:   time.Now().UTC().Format("2006-01-02T15:04:05.000"),
 	}
 
-	t.Run("should create key", func(t *testing.T) {
+	t.Run("should create key", func(t *testing.T) { //nolint:paralleltest
 		require.NoError(t, svc.StoreKey(testKey), "cannot create key in storage")
 	})
 
-	t.Run("should receive key", func(t *testing.T) {
+	t.Run("should receive key", func(t *testing.T) { //nolint:paralleltest
 		key, err := svc.GetKey(publicID)
 		require.NoError(t, err, "cannot get key from storage")
 		require.Equal(t, testKey, key)

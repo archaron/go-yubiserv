@@ -8,6 +8,9 @@ linters:
     - exhaustruct
     - varnamelen
     - depguard
+    - ireturn
+    - testpackage
+    - paralleltest
 
 linters-settings:
   govet:

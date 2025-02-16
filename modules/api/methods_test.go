@@ -1,4 +1,4 @@
-package api_test
+package api
 
 import (
 	"context"
@@ -19,7 +19,6 @@ import (
 
 	"github.com/archaron/go-yubiserv/common"
 	"github.com/archaron/go-yubiserv/misc"
-	"github.com/archaron/go-yubiserv/modules/api"
 )
 
 type testStorage struct{}
@@ -247,15 +246,7 @@ func Test_test(t *testing.T) {
 func Test_ops(t *testing.T) {
 	t.Parallel()
 
-	// Create test router
-	svc := &Service{
-		log:   zaptest.NewLogger(t),
-		Users: map[string]*common.OTPUser{},
-		settings: &settings.Core{
-			BuildTime:    "0123456789",
-			BuildVersion: "6660999",
-		},
-	}
+	svc := createTestService(t, &testStorage{})
 
 	t.Run("should return version", func(t *testing.T) {
 		t.Parallel()
@@ -319,18 +310,21 @@ func decodeAnswer(t *testing.T, body []byte) map[string]string {
 	return values
 }
 
-func createTestService(t *testing.T, storage common.StorageInterface) *api.Service {
+func createTestService(t *testing.T, storage common.StorageInterface) *Service {
 	t.Helper()
 
-	apikey, err := base64.StdEncoding.DecodeString("mG5be6ZJU1qBGz24yPh/ESM3UdU=")
+	apiKey, err := base64.StdEncoding.DecodeString("mG5be6ZJU1qBGz24yPh/ESM3UdU=")
 	require.NoError(t, err)
 
-	// Create test router
-	svc := &api.Service{
-		log:     zaptest.NewLogger(t),
-		apiKey:  apikey,
+	svc := &Service{
+		log:   zaptest.NewLogger(t),
+		Users: map[string]*common.OTPUser{},
+		settings: &settings.Core{
+			BuildTime:    "0123456789",
+			BuildVersion: "6660999",
+		},
 		storage: storage,
-		Users:   map[string]*common.OTPUser{},
+		apiKey:  apiKey,
 	}
 
 	svc.gmtLocation, err = time.LoadLocation("GMT")
@@ -339,7 +333,7 @@ func createTestService(t *testing.T, storage common.StorageInterface) *api.Servi
 	return svc
 }
 
-func verifyRequest(t *testing.T, q url.Values, svc *api.Service) map[string]string {
+func verifyRequest(t *testing.T, q url.Values, svc *Service) map[string]string {
 	t.Helper()
 
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://test/wsapi/2.0/verify/?"+q.Encode(), nil)

@@ -14,13 +14,14 @@ import (
 	"github.com/archaron/go-yubiserv/common"
 )
 
-// Module api constructor
+// Module api constructor.
 var Module = module.Module{ //nolint:gochecknoglobals
 	{Constructor: newAPIService, Options: []dig.ProvideOption{dig.Group("services")}},
 }
 
 var (
-	ErrTLSParams = errors.New("both tls certificate file and private key file must be set to enable TLS")
+	ErrTLSParams       = errors.New("both tls certificate file and private key file must be set to enable TLS")
+	ErrNoStorageModule = errors.New("no storage module selected")
 )
 
 func newAPIService(p serviceParams) (service.Service, error) {
@@ -30,7 +31,7 @@ func newAPIService(p serviceParams) (service.Service, error) {
 	)
 
 	if p.Storage == nil {
-		return nil, errors.New("no storage module selected")
+		return nil, ErrNoStorageModule
 	}
 
 	// Check if API secret key is specified
@@ -54,6 +55,7 @@ func newAPIService(p serviceParams) (service.Service, error) {
 		Users:    make(common.OTPUsers),
 	}
 	svc.log.Debug("API created")
+
 	return svc, nil
 }
 

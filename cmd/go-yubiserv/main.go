@@ -170,6 +170,7 @@ func main() {
 		&cli.StringFlag{Name: "vault-role-file", Value: "role_id", Usage: "Path to file containing role_id for Vault auth"},
 		&cli.StringFlag{Name: "vault-secret-id", Value: "", Usage: "secret_id for Vault auth, overrides secret-file"},
 		&cli.StringFlag{Name: "vault-secret-file", Value: "secret_id", Usage: "Path to file containing secret_id for Vault auth"},
+		&cli.DurationFlag{Name: "vault-login-timeout", Value: 5 * time.Second, Usage: "Vault server login timeout"},
 	}
 
 	// Default action

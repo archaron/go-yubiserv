@@ -2,6 +2,7 @@ package vaultstorage
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -45,8 +46,16 @@ type (
 		roleID, secretID string
 		vaultPath        string
 
+		loginTimeout time.Duration
+
 		sync.Mutex
 	}
+)
+
+const (
+	reLoginRatioM = 2
+	reLoginRatioD = 3
+	retryTimeout  = 60 * time.Second
 )
 
 // Start storage service.
@@ -69,33 +78,38 @@ func (s *Service) Start(ctx context.Context) error {
 
 	ttl, err := s.vaultToken.TokenTTL()
 	if err != nil {
-		return err
+		return errors.Wrap(err, "unable to get token TTL")
 	}
 
-	reloginTime := ttl * 2 / 3
+	reloginTime := (ttl * reLoginRatioM) / reLoginRatioD
 
 	s.log.Debug("got vault token", zap.Duration("ttl", ttl), zap.Duration("relogin_time", reloginTime))
 	timer := time.NewTimer(reloginTime)
+
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return ctx.Err() //nolint:wrapcheck
 		case <-timer.C:
 			s.log.Debug("relogin to renew vault access token")
+
 			if err = s.login(ctx); err != nil {
-				s.log.Error("cannot relogin to vault, will retry in 60 sec", zap.Error(err))
-				timer.Reset(60 * time.Second)
-			} else {
-				ttl, err := s.vaultToken.TokenTTL()
-				if err != nil {
-					return err
-				}
+				s.log.Error("cannot relogin to vault, will retry after pause", zap.Duration("pause", retryTimeout), zap.Error(err))
+				timer.Reset(retryTimeout)
 
-				reloginTime = ttl * 2 / 3
-				s.log.Debug("renewed vault token", zap.Duration("ttl", ttl), zap.Duration("relogin_time", reloginTime))
-
-				timer.Reset(reloginTime)
+				continue
 			}
+
+			ttl, err := s.vaultToken.TokenTTL()
+			if err != nil {
+				return fmt.Errorf("cannot get vault token TTL: %w", err)
+			}
+
+			reloginTime = (ttl * reLoginRatioM) / reLoginRatioD
+			s.log.Debug("renewed vault token", zap.Duration("ttl", ttl), zap.Duration("relogin_time", reloginTime))
+
+			timer.Reset(reloginTime)
+
 		}
 	}
 }
@@ -106,11 +120,12 @@ func (s *Service) login(rootCtx context.Context) error {
 		s.roleID,
 		secretID,
 	)
+
 	if err != nil {
 		return errors.Wrap(err, "unable to initialize AppRole")
 	}
 
-	ctx, cancel := context.WithTimeout(rootCtx, 10*time.Second)
+	ctx, cancel := context.WithTimeout(rootCtx, s.loginTimeout)
 	defer cancel()
 
 	authInfo, err := s.vault.Auth().Login(ctx, appRoleAuth)
@@ -123,6 +138,7 @@ func (s *Service) login(rootCtx context.Context) error {
 	}
 
 	s.vaultToken = authInfo
+
 	return nil
 }
 
@@ -143,6 +159,7 @@ func Defaults(ctx *cli.Context, v *viper.Viper) error {
 	v.SetDefault("vault.secret_file", ctx.String("vault-secret-file"))
 	v.SetDefault("vault.role_id", ctx.String("vault-role-id"))
 	v.SetDefault("vault.secret_id", ctx.String("vault-secret-id"))
+	v.SetDefault("vault.login_timeout", ctx.String("vault-login-timeout"))
 
 	return nil
 }
