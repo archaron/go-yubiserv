@@ -110,7 +110,6 @@ func Test_Rand(t *testing.T) { //nolint:tparallel
 }
 
 func Test_HexRand(t *testing.T) { //nolint:tparallel
-
 	var (
 		err          error
 		rand1, rand2 string
