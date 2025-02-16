@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/aes"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -15,10 +17,18 @@ import (
 	"go.uber.org/dig"
 	"go.uber.org/zap"
 
+	"github.com/archaron/go-yubiserv/common"
 	"github.com/archaron/go-yubiserv/misc"
 	"github.com/archaron/go-yubiserv/modules/api"
 	"github.com/archaron/go-yubiserv/modules/sqlitestorage"
 	"github.com/archaron/go-yubiserv/modules/vaultstorage"
+)
+
+const (
+	defaultShutdownTimeout       = 30 * time.Second
+	defaultLoggerSamplingInitial = 100
+	defaultLoggerSamplingThereafter
+	defaultVaultLoginTimeout = 5 * time.Second
 )
 
 func defaults(ctx *cli.Context, v *viper.Viper) error {
@@ -46,21 +56,21 @@ func defaults(ctx *cli.Context, v *viper.Viper) error {
 
 	// v.SetDefault("logger.no_caller", true)
 	v.SetDefault("logger.full_caller", false)
-	v.SetDefault("logger.sampling.initial", 100)
-	v.SetDefault("logger.sampling.thereafter", 100)
+	v.SetDefault("logger.sampling.initial", defaultLoggerSamplingInitial)
+	v.SetDefault("logger.sampling.thereafter", defaultLoggerSamplingThereafter)
 
-	v.SetDefault("shutdown_timeout", 30*time.Second)
+	v.SetDefault("shutdown_timeout", defaultShutdownTimeout)
 
 	if err := api.Defaults(ctx, v); err != nil {
-		return err
+		return fmt.Errorf("cannot apply api defaults: %w", err)
 	}
 
 	if err := vaultstorage.Defaults(ctx, v); err != nil {
-		return err
+		return fmt.Errorf("cannot apply vault defaults: %w", err)
 	}
 
 	if err := sqlitestorage.Defaults(ctx, v); err != nil {
-		return err
+		return fmt.Errorf("cannot apply sqlite defaults: %w", err)
 	}
 
 	// err := v.WriteConfigAs("./x.yaml")
@@ -85,6 +95,8 @@ var generateModules = module.Combine(
 	settings.Module, // settings module
 	logger.Module,   // logger module
 )
+
+var ErrUnknownKeyStore = errors.New("unknown key store specified")
 
 func main() {
 	c := cli.NewApp()
@@ -170,7 +182,7 @@ func main() {
 		&cli.StringFlag{Name: "vault-role-file", Value: "role_id", Usage: "Path to file containing role_id for Vault auth"},
 		&cli.StringFlag{Name: "vault-secret-id", Value: "", Usage: "secret_id for Vault auth, overrides secret-file"},
 		&cli.StringFlag{Name: "vault-secret-file", Value: "secret_id", Usage: "Path to file containing secret_id for Vault auth"},
-		&cli.DurationFlag{Name: "vault-login-timeout", Value: 5 * time.Second, Usage: "Vault server login timeout"},
+		&cli.DurationFlag{Name: "vault-login-timeout", Value: defaultVaultLoginTimeout, Usage: "Vault server login timeout"},
 	}
 
 	// Default action
@@ -181,7 +193,7 @@ func main() {
 		case "sqlite":
 			modules = modules.Append(sqlitestorage.Module)
 		default:
-			return fmt.Errorf("unknown keystore: %s", ctx.String("keystore"))
+			return fmt.Errorf("%s: %w", ctx.String("keystore"), ErrUnknownKeyStore)
 		}
 
 		h, err := helium.New(&helium.Settings{
@@ -196,7 +208,7 @@ func main() {
 			},
 		}, modules)
 		if err != nil {
-			return err
+			return fmt.Errorf("cannot initialize helium: %w", err)
 		}
 
 		return h.Run()
@@ -216,7 +228,7 @@ func generator() cli.ActionFunc {
 			BuildVersion: misc.Build,
 		}, generateModules)
 		if err != nil {
-			return err
+			return fmt.Errorf("cannot initialize helium: %w", err)
 		}
 
 		return h.Invoke(func(log *zap.Logger) {
@@ -231,22 +243,23 @@ func generator() cli.ActionFunc {
 			for i := start; i <= count; i++ {
 				ctr := fmt.Sprintf("%012x", i)
 				modhexctr := misc.HexToModHex(ctr)
-				internalUID, err := misc.HexRand(6)
+				internalUID, err := misc.HexRand(common.PrivateIDSize)
+
 				if err != nil {
 					log.Fatal("error generating random", zap.Error(err))
 				}
 
-				aesKey, err := misc.HexRand(16)
+				aesKey, err := misc.HexRand(aes.BlockSize)
 				if err != nil {
 					log.Fatal("error generating random aes key", zap.Error(err))
 				}
 
-				lockPW, err := misc.HexRand(6)
+				lockPW, err := misc.HexRand(common.LockPWSize)
 				if err != nil {
 					log.Fatal("error generating random lockPW", zap.Error(err))
 				}
 
-				fmt.Printf("%d,%s,%s,%s,%s,%s,%s\n",
+				fmt.Printf("%d,%s,%s,%s,%s,%s,%s\n", //nolint:forbidigo
 					i,
 					modhexctr,
 					internalUID,
@@ -254,7 +267,7 @@ func generator() cli.ActionFunc {
 					lockPW,
 					time.Now().Format(time.RFC3339),
 					progflags,
-				) //nolint:forbidigo
+				)
 
 				fmt.Println("# the end") //nolint:forbidigo
 			}

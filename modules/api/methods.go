@@ -23,7 +23,7 @@ import (
 	"github.com/archaron/go-yubiserv/modules/api/templates"
 )
 
-//nolint:gocyclo
+//nolint:gocyclo,funlen
 func (s *Service) verify(ctx *fasthttp.RequestCtx) {
 	if s.storage == nil {
 		s.log.Error("storage is nil, cannot verify OTP")
