@@ -1,7 +1,7 @@
 module github.com/archaron/go-yubiserv
 
 require (
-	github.com/Oudwins/zog v0.16.0
+	github.com/Oudwins/zog v0.16.6
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
 	github.com/go-chi/chi/v5 v5.2.1
 	github.com/go-chi/render v1.0.3
@@ -17,7 +17,7 @@ require (
 	github.com/urfave/cli/v2 v2.27.5
 	go.uber.org/dig v1.18.0
 	go.uber.org/zap v1.27.0
-	golang.org/x/exp v0.0.0-20250215185904-eff6e970281f
+	golang.org/x/exp v0.0.0-20250218142911-aa4b98e5adaa
 	golang.org/x/sync v0.11.0
 )
 
@@ -63,6 +63,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-go 1.23.0
-
-toolchain go1.23.3
+go 1.24.0
