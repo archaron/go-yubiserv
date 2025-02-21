@@ -84,4 +84,11 @@ func TestOTP(t *testing.T) {
 		_, err = result.EncryptToModHex(aesKeyBad)
 		require.ErrorIs(t, err, aes.KeySizeError(7))
 	})
+
+	t.Run("must error on bad OTP size", func(t *testing.T) {
+		t.Parallel()
+
+		err := (&common.OTP{}).UnmarshalBinary(nil)
+		require.ErrorIs(t, err, common.ErrInvalidLength)
+	})
 }

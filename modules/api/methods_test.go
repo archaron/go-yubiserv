@@ -1,12 +1,11 @@
 package api
 
 import (
-	"context"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	"io"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
@@ -14,7 +13,6 @@ import (
 
 	"github.com/im-kulikov/helium/settings"
 	"github.com/stretchr/testify/require"
-	"github.com/valyala/fasthttp"
 	"go.uber.org/zap/zaptest"
 
 	"github.com/archaron/go-yubiserv/common"
@@ -61,7 +59,7 @@ func Test_verify(t *testing.T) {
 			"h":     []string{"Fieq5toKf4ts+Lp2nCdibXjeUDI="},
 		}
 
-		values := verifyRequest(t, q, svc)
+		values := decodedRequest(t, q, svc.verifyHandler)
 		require.Equal(t, "OK", values["status"])
 	})
 
@@ -73,7 +71,7 @@ func Test_verify(t *testing.T) {
 			"h":     []string{"Fieq5toKf4ts+Lp2nCdibXjeUDI="},
 		}
 
-		values := verifyRequest(t, q, svc)
+		values := decodedRequest(t, q, svc.verifyHandler)
 		require.Equal(t, "REPLAYED_OTP", values["status"])
 	})
 
@@ -87,7 +85,7 @@ func Test_verify(t *testing.T) {
 			"h":     []string{"JA5nlNpWZ11shZpBgVc81AF/v2c="},
 		}
 
-		values := verifyRequest(t, q, svc)
+		values := decodedRequest(t, q, svc.verifyHandler)
 		require.Equal(t, "OK", values["status"])
 	})
 
@@ -101,7 +99,7 @@ func Test_verify(t *testing.T) {
 			"h":     []string{"invalid"},
 		}
 
-		values := verifyRequest(t, q, svc)
+		values := decodedRequest(t, q, svc.verifyHandler)
 		require.Equal(t, "MISSING_PARAMETER", values["status"])
 	})
 
@@ -115,7 +113,7 @@ func Test_verify(t *testing.T) {
 			"h":     []string{"Fieq5toKf4ts+Lp2nCdibXjeUDD="},
 		}
 
-		values := verifyRequest(t, q, svc)
+		values := decodedRequest(t, q, svc.verifyHandler)
 		require.Equal(t, "BAD_SIGNATURE", values["status"])
 	})
 
@@ -129,15 +127,8 @@ func Test_verify(t *testing.T) {
 			"h":     []string{"OibQi9SioatWjUt6ytNf4Jy1KgU="},
 		}
 
-		values := verifyRequest(t, q, svc)
+		values := decodedRequest(t, q, svc.verifyHandler)
 		require.Equal(t, "BAD_OTP", values["status"])
-	})
-
-	t.Run("should error on nil storage", func(t *testing.T) {
-		t.Parallel()
-
-		values := verifyRequest(t, url.Values{}, createTestService(t, nil))
-		require.Equal(t, "BACKEND_ERROR", values["status"])
 	})
 
 	t.Run("should error on decryption", func(t *testing.T) {
@@ -150,7 +141,7 @@ func Test_verify(t *testing.T) {
 			"h":     []string{"WtW0HVlSTNsoa5Nijq2eWggqzsE="},
 		}
 
-		values := verifyRequest(t, q, svc)
+		values := decodedRequest(t, q, svc.verifyHandler)
 		require.Equal(t, "BAD_OTP", values["status"])
 	})
 }
@@ -169,7 +160,7 @@ func Test_verifyNnParams(t *testing.T) {
 			"h":     []string{"Fieq5toKf4ts+Lp2nCdibXjeUDI="},
 		}
 
-		values := verifyRequest(t, q, svc)
+		values := decodedRequest(t, q, svc.verifyHandler)
 		require.Equal(t, "MISSING_PARAMETER", values["status"])
 	})
 
@@ -182,7 +173,7 @@ func Test_verifyNnParams(t *testing.T) {
 			"h":     []string{"Fieq5toKf4ts+Lp2nCdibXjeUDI="},
 		}
 
-		values := verifyRequest(t, q, svc)
+		values := decodedRequest(t, q, svc.verifyHandler)
 		require.Equal(t, "MISSING_PARAMETER", values["status"])
 	})
 
@@ -195,7 +186,7 @@ func Test_verifyNnParams(t *testing.T) {
 			"h":   []string{"Fieq5toKf4ts+Lp2nCdibXjeUDI="},
 		}
 
-		values := verifyRequest(t, q, svc)
+		values := decodedRequest(t, q, svc.verifyHandler)
 		require.Equal(t, "MISSING_PARAMETER", values["status"])
 	})
 
@@ -208,7 +199,7 @@ func Test_verifyNnParams(t *testing.T) {
 			"otp":   []string{"cccccccccccbiucvrkjiegbhidrcicvlgrcgkgurhjnj"},
 		}
 
-		values := verifyRequest(t, q, svc)
+		values := decodedRequest(t, q, svc.verifyHandler)
 		require.Equal(t, "MISSING_PARAMETER", values["status"])
 	})
 }
@@ -221,24 +212,12 @@ func Test_test(t *testing.T) {
 	t.Run("should validate signed  OTP request", func(t *testing.T) {
 		t.Parallel()
 
-		q := url.Values{
+		body := simpleRequest(t, svc.testHandler, url.Values{
 			"otp": []string{"cccccccccccbiucvrkjiegbhidrcicvlgrcgkgurhjnj"},
-		}
+		})
 
-		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://test/wsapi/2.0/test/?"+q.Encode(), nil)
-		require.NoError(t, err)
-
-		res, err := common.Serve(svc.test, req)
-		require.NoError(t, err)
-
-		body, err := io.ReadAll(res.Body)
-		require.NoError(t, res.Body.Close())
-		require.NoError(t, err)
-
-		require.Equal(t, http.StatusOK, res.StatusCode)
-
-		require.Contains(t, string(body), "OTP Test page")
-		require.Contains(t, string(body), "status=OK")
+		require.Contains(t, body, "OTP Test page")
+		require.Contains(t, body, "status=OK")
 	})
 }
 
@@ -252,7 +231,7 @@ func Test_ops(t *testing.T) {
 
 		require.JSONEq(t,
 			"{\"buildTime\":\"0123456789\",\"status\":\"ok\",\"version\":\"6660999\"}\n",
-			opsRequest(t, svc.version),
+			simpleRequest(t, svc.version),
 		)
 	})
 
@@ -261,7 +240,7 @@ func Test_ops(t *testing.T) {
 
 		require.JSONEq(t,
 			"{\"status\":\"ok\"}\n",
-			opsRequest(t, svc.health),
+			simpleRequest(t, svc.health),
 		)
 	})
 
@@ -270,34 +249,39 @@ func Test_ops(t *testing.T) {
 
 		require.JSONEq(t,
 			"{\"status\":\"ok\"}\n",
-			opsRequest(t, svc.readiness),
+			simpleRequest(t, svc.readiness),
 		)
 	})
 }
 
-func opsRequest(t *testing.T, handler fasthttp.RequestHandler) string {
+func simpleRequest(t *testing.T, handler http.HandlerFunc, args ...url.Values) string {
 	t.Helper()
 
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://test/ops", nil)
-	require.NoError(t, err)
+	q := make(url.Values)
 
-	res, err := common.Serve(handler, req)
-	require.NoError(t, err)
+	for arg := range args {
+		for k, v := range args[arg] {
+			q[k] = append(q[k], v...)
+		}
+	}
 
-	body, err := io.ReadAll(res.Body)
-	require.NoError(t, res.Body.Close())
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, res.StatusCode)
+	rec := httptest.NewRecorder()
 
-	return string(body)
+	req := httptest.NewRequest(http.MethodGet, "http://test/?"+q.Encode(), nil)
+
+	handler(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	return rec.Body.String()
 }
 
-func decodeAnswer(t *testing.T, body []byte) map[string]string {
+func decodeAnswer(t *testing.T, body string) map[string]string {
 	t.Helper()
 
 	values := map[string]string{}
 
-	for _, s := range strings.Split(strings.TrimSpace(string(body)), "\n") {
+	for _, s := range strings.Split(strings.TrimSpace(body), "\n") {
 		v := strings.SplitN(s, "=", 2)
 		if len(v) > 1 {
 			values[v[0]] = v[1]
@@ -332,22 +316,10 @@ func createTestService(t *testing.T, storage common.StorageInterface) *Service {
 	return svc
 }
 
-func verifyRequest(t *testing.T, q url.Values, svc *Service) map[string]string {
+func decodedRequest(t *testing.T, q url.Values, handler http.HandlerFunc) map[string]string {
 	t.Helper()
 
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://test/wsapi/2.0/verify/?"+q.Encode(), nil)
-	require.NoError(t, err)
-
-	res, err := common.Serve(svc.verify, req)
-	require.NoError(t, err)
-
-	body, err := io.ReadAll(res.Body)
-	require.NoError(t, res.Body.Close())
-	require.NoError(t, err)
-
-	require.Equal(t, http.StatusOK, res.StatusCode)
-
-	values := decodeAnswer(t, body)
+	values := decodeAnswer(t, simpleRequest(t, handler, q))
 	require.Contains(t, values, "status")
 
 	return values

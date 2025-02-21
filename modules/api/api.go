@@ -3,15 +3,21 @@ package api
 
 import (
 	"context"
+	"crypto/tls"
+	"encoding/base64"
 	"fmt"
+	"net"
+	"net/http"
 	"time"
 
 	"github.com/coreos/go-systemd/daemon"
+	"github.com/go-chi/chi/v5"
+
 	"github.com/im-kulikov/helium/settings"
 	"github.com/spf13/viper"
-	"github.com/valyala/fasthttp"
 	"go.uber.org/dig"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/archaron/go-yubiserv/common"
 	"github.com/archaron/go-yubiserv/misc"
@@ -29,9 +35,11 @@ type (
 
 	// Service represents API service.
 	Service struct {
-		log         *zap.Logger
-		address     string
-		listener    *fasthttp.Server
+		log     *zap.Logger
+		address string
+
+		server *http.Server
+
 		settings    *settings.Core
 		gmtLocation *time.Location
 		storage     common.StorageInterface
@@ -47,11 +55,52 @@ type (
 	}
 )
 
+func (s *Service) newRouter() http.Handler {
+	r := chi.NewRouter()
+	r.Get("/version", s.version)
+	r.Get("/health", s.health)
+	r.Get("/readiness", s.readiness)
+
+	r.Get("/wsapi/2.0/verify", s.verifyHandler)
+	r.Get("/", s.testHandler)
+
+	return r
+}
+
+func makeAPIKey(secret string) ([]byte, error) {
+	if secret == "" {
+		return nil, nil
+	}
+
+	key, err := base64.StdEncoding.DecodeString(secret)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode api key: %w", err)
+	}
+
+	return key, nil
+}
+
 // Printf function for HTTP debug log.
 func (s *Service) Printf(format string, args ...interface{}) {
 	if misc.Debug {
 		s.log.Warn(fmt.Sprintf(format, args...))
 	}
+}
+
+func loadTLSConfig(cert, key string) (*tls.Config, error) {
+	if cert == "" && key == "" {
+		return nil, nil //nolint:nilnil
+	}
+
+	cer, err := tls.LoadX509KeyPair(cert, key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load TLS certificate(cert:%q, key:%q): %w", cert, key, err)
+	}
+
+	return &tls.Config{
+		Certificates: []tls.Certificate{cer},
+		MinVersion:   tls.VersionTLS13,
+	}, nil
 }
 
 // Start API service.
@@ -60,13 +109,19 @@ func (s *Service) Start(parentCtx context.Context) error {
 
 	ctx, s.cancel = context.WithCancel(parentCtx)
 
-	var err error
+	tlsConfig, err := loadTLSConfig(s.cert, s.key)
+	if err != nil {
+		return fmt.Errorf("failed to prepare TLS config: %w", err)
+	}
 
-	s.listener = &fasthttp.Server{
-		Handler:      s.requestHandler,
-		ReadTimeout:  s.timeout,
-		WriteTimeout: s.timeout,
-		Logger:       s,
+	s.server = &http.Server{
+		Addr:              s.address,
+		Handler:           s.newRouter(),
+		TLSConfig:         tlsConfig,
+		ReadTimeout:       s.timeout,
+		ReadHeaderTimeout: s.timeout,
+		WriteTimeout:      s.timeout,
+		BaseContext:       func(net.Listener) context.Context { return ctx },
 	}
 
 	s.gmtLocation, err = time.LoadLocation("GMT")
@@ -74,49 +129,46 @@ func (s *Service) Start(parentCtx context.Context) error {
 		return fmt.Errorf("failed to load GMT: %w", err)
 	}
 
-	if s.cert != "" && s.key != "" {
-		s.log.Info("listen in secured TLS mode", zap.String("address", s.address))
-
-		go func() {
-			if err = s.listener.ListenAndServeTLS(s.address, s.cert, s.key); err != nil {
-				s.log.Fatal("api tls listen error", zap.Error(err))
-			}
-		}()
-	} else {
-		s.log.Info("listen in unsecured HTTP mode", zap.String("address", s.address))
-
-		go func() {
-			if err = s.listener.ListenAndServe(s.address); err != nil {
-				s.log.Fatal("api listen error", zap.Error(err))
-			}
-		}()
-	}
-
 	// Notify systemd
-	if _, err := daemon.SdNotify(false, daemon.SdNotifyReady); err != nil {
+	if _, err = daemon.SdNotify(false, daemon.SdNotifyReady); err != nil {
 		s.log.Info("error sending systemd ready notify")
 	}
 
-	s.Watchdog(ctx)
+	run, _ := errgroup.WithContext(ctx)
+	run.Go(s.Watchdog(ctx))
 
-	<-ctx.Done()
+	if tlsConfig != nil {
+		s.log.Info("listen in secured TLS HTTPS mode", zap.String("address", s.address))
+		run.Go(func() error {
+			return s.server.ListenAndServeTLS("", "")
+		})
+	} else {
+		s.log.Info("listen in unsecured HTTP mode", zap.String("address", s.address))
+		run.Go(s.server.ListenAndServe)
+	}
+
+	err = run.Wait()
+	if err != nil {
+		return fmt.Errorf("unable to wait for all listeners: %w", err)
+	}
 
 	return nil
 }
 
 // Stop API service.
-func (s *Service) Stop(_ context.Context) {
-	defer s.cancel()
+func (s *Service) Stop(ctx context.Context) {
+	s.cancel()
 
 	// Notify systemd app is stopping
 	if _, err := daemon.SdNotify(false, daemon.SdNotifyStopping); err != nil {
 		s.log.Info("error sending systemd ready notify")
 	}
 
-	if s.listener != nil {
-		s.log.Info("api.stop")
-		_ = s.listener.Shutdown()
+	if s.server == nil {
+		return
 	}
+
+	s.log.Info("api.stop", zap.Error(s.server.Shutdown(ctx)))
 }
 
 // Name of the API service.
@@ -124,41 +176,12 @@ func (s *Service) Name() string {
 	return "api"
 }
 
-func (s *Service) requestHandler(ctx *fasthttp.RequestCtx) {
-	switch string(ctx.Path()) {
-	case "/wsapi/2.0/verify":
-		s.verify(ctx)
-
-		return
-
-	case "/version":
-		s.version(ctx)
-
-		return
-	case "/readiness":
-		// Perform state checks, and report readiness status
-		s.readiness(ctx)
-
-	case "/health":
-		// Service health check
-		s.health(ctx)
-
-	case "/":
-		s.test(ctx)
-
-	default:
-		ctx.Error("Unsupported path", fasthttp.StatusNotFound)
-
-		return
-	}
-}
-
 // Watchdog for systemd keepalive responses.
-func (s *Service) Watchdog(ctx context.Context) {
-	go func(ctx context.Context) {
+func (s *Service) Watchdog(ctx context.Context) func() error {
+	return func() error {
 		interval, err := daemon.SdWatchdogEnabled(false)
 		if err != nil || interval == 0 {
-			return
+			return fmt.Errorf("unable to enable watchdog: %w", err)
 		}
 
 		interval /= 2
@@ -170,14 +193,14 @@ func (s *Service) Watchdog(ctx context.Context) {
 		for {
 			select {
 			case <-ctx.Done():
-				return
+				return nil
 			case <-timer.C:
-				if _, err := daemon.SdNotify(false, daemon.SdNotifyWatchdog); err != nil {
+				if _, err = daemon.SdNotify(false, daemon.SdNotifyWatchdog); err != nil {
 					s.log.Info("error sending systemd alive notify")
 				}
 
 				timer.Reset(interval)
 			}
 		}
-	}(ctx)
+	}
 }

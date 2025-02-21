@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/base64"
 	"errors"
 	"fmt"
 
@@ -25,22 +24,15 @@ var (
 )
 
 func newAPIService(p serviceParams) (service.Service, error) {
-	var (
-		apiKey []byte
-		err    error
-	)
 
 	if p.Storage == nil {
 		return nil, ErrNoStorageModule
 	}
 
 	// Check if API secret key is specified
-	key := p.Config.GetString("api.secret")
-	if len(key) > 0 {
-		apiKey, err = base64.StdEncoding.DecodeString(key)
-		if err != nil {
-			return nil, fmt.Errorf("failed to decode api key: %w", err)
-		}
+	apiKey, err := makeAPIKey(p.Config.GetString("api.secret"))
+	if err != nil {
+		return nil, fmt.Errorf("cannot get api key: %w", err)
 	}
 
 	svc := &Service{
@@ -54,6 +46,7 @@ func newAPIService(p serviceParams) (service.Service, error) {
 		key:      p.Config.GetString("api.tls_key"),
 		Users:    make(common.OTPUsers),
 	}
+
 	svc.log.Debug("API created")
 
 	return svc, nil

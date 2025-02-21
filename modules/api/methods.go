@@ -8,14 +8,19 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
+	"reflect"
 	"regexp"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
-	"github.com/valyala/fasthttp"
+	"github.com/Oudwins/zog"
+	"github.com/Oudwins/zog/internals"
+	"github.com/go-chi/render"
 	"go.uber.org/zap"
 
 	"github.com/archaron/go-yubiserv/common"
@@ -23,115 +28,152 @@ import (
 	"github.com/archaron/go-yubiserv/modules/api/templates"
 )
 
-//nolint:gocyclo,funlen
-func (s *Service) verify(ctx *fasthttp.RequestCtx) {
-	if s.storage == nil {
-		s.log.Error("storage is nil, cannot verify OTP")
-		s.backendErrorResponse(ctx, nil)
+type verifyReq struct {
+	RID       string `zog:"id"`
+	OTP       string `zog:"otp"`
+	Nonce     string `zog:"nonce"`
+	Signature string `zog:"h"`
+}
 
-		return
+//nolint:forcetypeassert
+func newVerifyRequestSchema(args url.Values, key []byte) []zog.PrimitiveZogSchema[string] {
+
+	return []zog.PrimitiveZogSchema[string]{
+		zog.String().Required(zog.Message(ResponseCodeMissingParameter)),
+		zog.String().Required(zog.Message(ResponseCodeMissingParameter)).
+			Len(common.OTPMaxLength, zog.Message(ResponseCodeMissingParameter)).PreTransform(
+			func(data any, _ internals.Ctx) (any, error) {
+				otp := data.(string)
+
+				// Ensure lowercase OTP
+				otp = strings.ToLower(otp)
+
+				// Check for Dvorak layout and fix it
+				if misc.IsDvorakModHex(otp) {
+					otp = misc.DvorakToModHex(otp)
+				}
+
+				return otp, nil
+			},
+		),
+		zog.String().
+			Required(zog.Message(ResponseCodeMissingParameter)).
+			Min(common.NonceMinLength, zog.Message(ResponseCodeMissingParameter)).
+			Max(common.NonceMaxLength, zog.Message(ResponseCodeMissingParameter)).
+			Match(regexp.MustCompile(`(?m)^[a-zA-Z0-9]+$`), zog.Message(ResponseCodeMissingParameter)),
+
+		zog.String().
+			Required(zog.Message(ResponseCodeMissingParameter), func(test *internals.Test) {
+				if len(key) == 0 {
+
+					test = &zog.Test{}
+				}
+			}).
+			Test(zog.TestFunc("signature", func(val any, ctx internals.Ctx) bool {
+				if len(key) == 0 {
+					return true
+				}
+
+				in := val.(string)
+				if in == "" {
+					ctx.AddIssue(&internals.ZogErr{Msg: ResponseCodeMissingParameter, EPath: "signature"})
+
+					return false
+				}
+
+				hmacSignature, err := base64.StdEncoding.DecodeString(in)
+				if err != nil {
+					ctx.AddIssue(&internals.ZogErr{
+						Msg:   ResponseCodeMissingParameter,
+						EPath: "signature",
+						Err:   fmt.Errorf("base64 decoding failed: %w, input=%q", err, in),
+					})
+
+					return false
+				}
+
+				var data []string
+				for k := range args {
+					if k == "h" {
+						continue
+					}
+					data = append(data, k+"="+args.Get(k))
+				}
+
+				sort.Strings(data)
+
+				if signature := common.SignMap(data, key); !hmac.Equal(hmacSignature, signature) {
+					ctx.AddIssue(&internals.ZogErr{
+						Msg:   ResponseCodeBadSignature,
+						EPath: "signature",
+					})
+
+					return false
+				}
+
+				return true
+			})),
 	}
+}
 
-	args := ctx.QueryArgs()
+func (s *Service) verifyHandler(w http.ResponseWriter, r *http.Request) {
+	log := s.log.With(zap.String("method", "verify"))
+
+	var req verifyReq
+
 	extra := make(map[string]string)
 
-	// Additional log params
-	log := s.log.With(
-		zap.String("action", "verify"),
-		zap.Uint64("request_id", ctx.ID()),
-	)
+	uri := r.URL.Query()
+	val := reflect.ValueOf(&req).Elem()
+	typ := reflect.TypeOf(req)
+	schema := newVerifyRequestSchema(uri, s.apiKey)
 
-	// Check request user id
-	if id, err := args.GetUint("id"); err != nil || id < 1 {
-		log.Error("field ID has wrong format", zap.Int("id", id), zap.Error(err))
-		s.paramMissingResponse(ctx, extra)
+	for i := range typ.NumField() {
+		tag := typ.Field(i).Tag.Get("zog")
 
-		return
-	}
+		var tmp string
 
-	// Check request OTP field
-	otp := string(args.Peek("otp"))
+		errs := schema[i].Parse(uri.Get(tag), &tmp)
 
-	// Ensure lowercase OTP
-	otp = strings.ToLower(otp)
+		if len(errs) == 0 {
+			val.Field(i).SetString(tmp)
 
-	// Check for Dvorak layout and fix it
-	if misc.IsDvorakModHex(otp) {
-		otp = misc.DvorakToModHex(otp)
-	}
-
-	if otpLen := len(otp); otpLen != common.OTPMaxLength {
-		log.Error("field OTP is not a valid OTP", zap.String("otp", otp), zap.Int("otp_len", otpLen))
-		s.paramMissingResponse(ctx, extra)
-
-		return
-	}
-
-	// Check request Nonce field
-	nonce := string(args.Peek("nonce"))
-
-	if nonceLen := len(nonce); nonceLen < common.NonceMinLength || nonceLen > common.NonceMaxLength || !misc.IsAlphaNum(nonce) {
-		log.Error("field Nonce is not a valid nonce", zap.String("nonce", nonce), zap.Int("nonce_len", nonceLen))
-		s.paramMissingResponse(ctx, extra)
-
-		return
-	}
-
-	// If we have an apiKey to verify signature
-	if len(s.apiKey) > 0 {
-		// Check request H field
-		h := string(args.Peek("h"))
-		hLen := len(h)
-
-		// If incoming client signature exists, check it
-		if hLen == 0 {
-			log.Error("missing signature H field, but have api-secret specified, rejecting request")
-			s.paramMissingResponse(ctx, extra)
-
-			return
+			continue
 		}
 
-		hmacSignature, err := base64.StdEncoding.DecodeString(h)
-		if err != nil {
-			log.Error("cannot decode base64 string in H field", zap.String("h", h), zap.Error(err))
-			s.paramMissingResponse(ctx, extra)
+		for _, v := range errs {
+			if message := v.Message(); message != "" {
+				if errResp := s.responseW(w, message, s.apiKey, extra); errResp != nil {
+					log.Error("error sending backend error response", zap.Error(errResp))
+				}
 
-			return
-		}
+				log.Debug("message", zap.String("field", typ.Field(i).Name), zap.Error(v))
 
-		// Verify client HMAC
-		var sm []string
-
-		args.VisitAll(func(key, value []byte) {
-			if !bytes.Equal(key, []byte{'h'}) { // Remove the request signature itself
-				sm = append(sm, string(key)+"="+string(value))
+				return
 			}
-		})
 
-		if signature := common.SignMap(sm, s.apiKey); !hmac.Equal(hmacSignature, signature) {
-			log.Error("bad request HMAC signature detected, rejecting request", zap.Error(err))
-			// fmt.Println(base64.StdEncoding.EncodeToString(signature))
-			s.badSignatureResponse(ctx, extra)
-
-			return
 		}
+
 	}
 
 	// Ok, all checks done, let's try OTP verify
 	matches := regexp.MustCompile(fmt.Sprintf("(?m)^([cbdefghijklnrtuv]{%d})([cbdefghijklnrtuv]{%d})$",
 		common.PublicIDLength,
 		common.TokenLength,
-	)).FindAllStringSubmatch(otp, -1)
+	)).FindAllStringSubmatch(req.OTP, -1)
 
 	if len(matches) != 1 || len(matches[0]) != 3 {
-		log.Error("invalid OTP format, cannot extract client ID and hash")
-		s.badOTPResponse(ctx, extra)
+		log.Error("invalid OTP format, cannot extract client ID and hash", zap.String("otp", req.OTP))
+
+		if err := s.responseW(w, ResponseCodeBadOTP, s.apiKey, extra); err != nil {
+			log.Error("could not send response", zap.Error(err))
+		}
 
 		return
 	}
 
-	extra["otp"] = otp
-	extra["nonce"] = nonce
+	extra["otp"] = req.OTP
+	extra["nonce"] = req.Nonce
 
 	publicID := matches[0][1]
 
@@ -142,12 +184,17 @@ func (s *Service) verify(ctx *fasthttp.RequestCtx) {
 		log.Error("error decrypting OTP", zap.Error(err))
 
 		if errors.Is(err, common.ErrStorageNoKey) {
-			s.noSuchClientResponse(ctx, extra)
+
+			if err = s.responseW(w, ResponseCodeNoSuchClient, s.apiKey, extra); err != nil {
+				log.Error("could not send response", zap.Error(err))
+			}
 
 			return
 		}
 
-		s.badOTPResponse(ctx, extra)
+		if err = s.responseW(w, ResponseCodeBadOTP, s.apiKey, extra); err != nil {
+			log.Error("could not send response", zap.Error(err))
+		}
 
 		return
 	}
@@ -172,7 +219,10 @@ func (s *Service) verify(ctx *fasthttp.RequestCtx) {
 				zap.Uint16("saved_usage_counter", user.UsageCounter),
 				zap.Uint16("otp_usage_counter", otpData.UsageCounter),
 			)
-			s.replayedOTPResponse(ctx, extra)
+
+			if err = s.responseW(w, ResponseCodeReplayedOTP, s.apiKey, extra); err != nil {
+				log.Error("could not send response", zap.Error(err))
+			}
 
 			return
 		}
@@ -188,25 +238,28 @@ func (s *Service) verify(ctx *fasthttp.RequestCtx) {
 		zap.String("otp", otpData.String()),
 	)
 
-	s.okResponse(ctx, extra)
+	if err = s.responseW(w, ResponseCodeOK, s.apiKey, extra); err != nil {
+		log.Error("could not send response", zap.Error(err))
+	}
+
 }
 
-func (s *Service) version(ctx *fasthttp.RequestCtx) {
-	s.jsonResponse(ctx, http.StatusOK, map[string]interface{}{
+func (s *Service) version(w http.ResponseWriter, r *http.Request) {
+	render.JSON(w, r, map[string]interface{}{
 		"version":   s.settings.BuildVersion,
 		"buildTime": s.settings.BuildTime,
 		"status":    "ok",
 	})
 }
 
-func (s *Service) health(ctx *fasthttp.RequestCtx) {
-	s.jsonResponse(ctx, http.StatusOK, map[string]interface{}{
+func (s *Service) health(w http.ResponseWriter, r *http.Request) {
+	render.JSON(w, r, map[string]interface{}{
 		"status": "ok",
 	})
 }
 
-func (s *Service) readiness(ctx *fasthttp.RequestCtx) {
-	s.jsonResponse(ctx, http.StatusOK, map[string]interface{}{
+func (s *Service) readiness(w http.ResponseWriter, r *http.Request) {
+	render.JSON(w, r, map[string]interface{}{
 		"status": "ok",
 	})
 }
@@ -216,67 +269,54 @@ type TestResponseParams struct {
 	Result string
 }
 
-func (s *Service) test(ctx *fasthttp.RequestCtx) {
-	ctx.SetStatusCode(http.StatusOK)
-	ctx.SetContentType("text/html")
+func (s *Service) testHandler(w http.ResponseWriter, r *http.Request) {
+	var (
+		err error
+		out string
+	)
 
-	params := TestResponseParams{}
+	render.Status(r, http.StatusOK)
 
-	otp := string(ctx.QueryArgs().Peek("otp"))
-	if len(otp) > 0 {
-		requestID := fmt.Sprintf("%6d", time.Now().Unix())
+	if out, err = s.testVerifyRequest(r); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 
-		b := make([]byte, common.NonceMinLength)
-
-		if _, err := rand.Read(b); err != nil {
-			s.log.Error("error generating random nonce", zap.Error(err))
-
-			return
-		}
-
-		nonce := hex.EncodeToString(b)
-
-		data := []string{
-			"id=" + requestID,
-			"otp=" + otp,
-			"nonce=" + nonce,
-		}
-
-		signature := common.SignMapToBase64(data, s.apiKey)
-
-		q := url.Values{
-			"id":    []string{requestID},
-			"otp":   []string{otp},
-			"nonce": []string{nonce},
-			"h":     []string{signature},
-		}
-
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://test/wsapi/2.0/verify/?"+q.Encode(), nil)
-		if err != nil {
-			s.log.Error("error creating test request", zap.Error(err))
-
-			return
-		}
-
-		res, err := common.Serve(s.verify, req)
-		if err != nil {
-			s.log.Error("error serving test request", zap.Error(err))
-		}
-
-		body, err := io.ReadAll(res.Body)
-		if err != nil {
-			s.log.Error("error reading response", zap.Error(err))
-		}
-
-		if closerError := res.Body.Close(); closerError != nil {
-			s.log.Error("error closing body", zap.Error(closerError))
-		}
-
-		params.Result = string(body)
+		return
 	}
 
-	err := templates.IndexTemplate().Execute(ctx, params)
-	if err != nil {
-		s.log.Error("error executing test template", zap.Error(err))
+	buf := new(bytes.Buffer)
+	if err = templates.IndexTemplate().Execute(buf, &TestResponseParams{Result: out}); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+
+		return
 	}
+
+	render.HTML(w, r, buf.String())
+}
+
+func (s *Service) testVerifyRequest(r *http.Request) (string, error) {
+	otp := r.URL.Query().Get("otp")
+
+	if otp == "" {
+		return "", nil
+	}
+
+	buf := make([]byte, common.NonceMinLength)
+	if _, err := rand.Read(buf); err != nil {
+		return "", fmt.Errorf("could not generate nonce: %w", err)
+	}
+
+	data := []string{
+		"id=" + strconv.FormatInt(time.Now().Unix(), 10),
+		"otp=" + otp,
+		"nonce=" + hex.EncodeToString(buf),
+	}
+
+	sign := common.SignMapToBase64(data, s.apiKey)
+	data = append(data, "h="+url.QueryEscape(sign))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/?"+strings.Join(data, "&"), nil)
+	s.verifyHandler(rec, req)
+
+	return rec.Body.String(), nil
 }

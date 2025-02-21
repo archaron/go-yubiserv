@@ -40,4 +40,5 @@ var (
 	_ = ResponseCodeReplayedRequest
 	_ = ResponseCodeOperationNotAllowed
 	_ = ResponseCodeDelayedOTP
+	_ = ResponseCodeBackendError
 )
