@@ -73,7 +73,7 @@ func (s *Service) Start(ctx context.Context) error {
 	}
 
 	if err = s.login(ctx); err != nil {
-		return err
+		return errors.Wrap(err, "unable to login")
 	}
 
 	ttl, err := s.vaultToken.TokenTTL()
@@ -89,7 +89,7 @@ func (s *Service) Start(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err() //nolint:wrapcheck
+			return errors.Wrap(context.Cause(ctx), "vault storage context cancelled")
 		case <-timer.C:
 			s.log.Debug("relogin to renew vault access token")
 

@@ -8,7 +8,7 @@ require (
 	github.com/hashicorp/vault/api v1.16.0
 	github.com/hashicorp/vault/api/auth/approle v0.9.0
 	github.com/howeyc/crc16 v0.0.0-20171223171357-2b2a61e366a6
-	github.com/im-kulikov/helium v1.14.0-rc.10
+	github.com/im-kulikov/helium v0.14.0-rc.10.0.20240315154036-58f3c64aa02d
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/pkg/errors v0.9.1

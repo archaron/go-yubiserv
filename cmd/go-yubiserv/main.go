@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	defaultShutdownTimeout       = 30 * time.Second
+	defaultShutdownTimeout       = 5 * time.Second
 	defaultLoggerSamplingInitial = 100
 	defaultLoggerSamplingThereafter
 	defaultVaultLoginTimeout = 5 * time.Second

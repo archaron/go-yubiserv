@@ -45,6 +45,7 @@ func newAPIService(p serviceParams) (service.Service, error) {
 		cert:     p.Config.GetString("api.tls_cert"),
 		key:      p.Config.GetString("api.tls_key"),
 		Users:    make(common.OTPUsers),
+		started:  make(chan struct{}),
 	}
 
 	svc.log.Debug("API created")

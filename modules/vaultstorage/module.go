@@ -31,9 +31,10 @@ func NewTestService(log *zap.Logger, getterFunc KeyGetterFunc) (*Service, error)
 
 func newService(p serviceParams) (serviceOutParams, error) {
 	svc := &Service{
-		log:       p.Logger,
-		address:   p.Config.GetString("vault.address"),
-		vaultPath: p.Config.GetString("vault.path"),
+		log:          p.Logger,
+		address:      p.Config.GetString("vault.address"),
+		vaultPath:    p.Config.GetString("vault.path"),
+		loginTimeout: p.Config.GetDuration("vault.login_timeout"),
 	}
 
 	// Default Key fetcher

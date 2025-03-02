@@ -3,7 +3,6 @@ package api
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/base64"
 	"fmt"
 	"net"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/coreos/go-systemd/daemon"
 	"github.com/go-chi/chi/v5"
+	"github.com/pkg/errors"
 
 	"github.com/im-kulikov/helium/settings"
 	"github.com/spf13/viper"
@@ -38,7 +38,8 @@ type (
 		log     *zap.Logger
 		address string
 
-		server *http.Server
+		server  *http.Server
+		started chan struct{}
 
 		settings    *settings.Core
 		gmtLocation *time.Location
@@ -87,37 +88,18 @@ func (s *Service) Printf(format string, args ...interface{}) {
 	}
 }
 
-func loadTLSConfig(cert, key string) (*tls.Config, error) {
-	if cert == "" && key == "" {
-		return nil, nil //nolint:nilnil
-	}
-
-	cer, err := tls.LoadX509KeyPair(cert, key)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load TLS certificate(cert:%q, key:%q): %w", cert, key, err)
-	}
-
-	return &tls.Config{
-		Certificates: []tls.Certificate{cer},
-		MinVersion:   tls.VersionTLS13,
-	}, nil
-}
-
 // Start API service.
 func (s *Service) Start(parentCtx context.Context) error {
-	var ctx context.Context
+	var (
+		ctx context.Context
+		err error
+	)
 
 	ctx, s.cancel = context.WithCancel(parentCtx)
-
-	tlsConfig, err := loadTLSConfig(s.cert, s.key)
-	if err != nil {
-		return fmt.Errorf("failed to prepare TLS config: %w", err)
-	}
 
 	s.server = &http.Server{
 		Addr:              s.address,
 		Handler:           s.newRouter(),
-		TLSConfig:         tlsConfig,
 		ReadTimeout:       s.timeout,
 		ReadHeaderTimeout: s.timeout,
 		WriteTimeout:      s.timeout,
@@ -129,46 +111,57 @@ func (s *Service) Start(parentCtx context.Context) error {
 		return fmt.Errorf("failed to load GMT: %w", err)
 	}
 
+	var ok bool
+
 	// Notify systemd
-	if _, err = daemon.SdNotify(false, daemon.SdNotifyReady); err != nil {
-		s.log.Info("error sending systemd ready notify")
+	if ok, err = daemon.SdNotify(false, daemon.SdNotifyReady); err != nil {
+		s.log.Warn("error sending systemd ready notify", zap.Error(err))
 	}
+
+	s.log.Debug("systemd notify", zap.Bool("detected", ok))
 
 	run, _ := errgroup.WithContext(ctx)
 	run.Go(s.Watchdog(ctx))
+	run.Go(s.serve)
+	run.Go(func() error {
+		close(s.started)
 
-	if tlsConfig != nil {
+		return nil
+	})
+
+	return errors.Wrap(run.Wait(), "api start")
+}
+
+func (s *Service) serve() error {
+	if s.cert != "" && s.key != "" {
 		s.log.Info("listen in secured TLS HTTPS mode", zap.String("address", s.address))
-		run.Go(func() error {
-			return s.server.ListenAndServeTLS("", "")
-		})
-	} else {
-		s.log.Info("listen in unsecured HTTP mode", zap.String("address", s.address))
-		run.Go(s.server.ListenAndServe)
+
+		return errors.Wrap(s.server.ListenAndServeTLS(s.cert, s.key), "https serve")
 	}
 
-	err = run.Wait()
-	if err != nil {
-		return fmt.Errorf("unable to wait for all listeners: %w", err)
-	}
+	s.log.Info("listen in unsecured HTTP mode", zap.String("address", s.address))
 
-	return nil
+	return errors.Wrap(s.server.ListenAndServe(), "http serve")
 }
 
 // Stop API service.
 func (s *Service) Stop(ctx context.Context) {
-	s.cancel()
+	defer s.cancel()
+
+	select {
+	case <-ctx.Done():
+		return
+	case <-s.started:
+	}
 
 	// Notify systemd app is stopping
 	if _, err := daemon.SdNotify(false, daemon.SdNotifyStopping); err != nil {
 		s.log.Info("error sending systemd ready notify")
 	}
 
-	if s.server == nil {
-		return
+	if s.server != nil {
+		s.log.Info("shutting down server", zap.Error(s.server.Shutdown(ctx)))
 	}
-
-	s.log.Info("api.stop", zap.Error(s.server.Shutdown(ctx)))
 }
 
 // Name of the API service.
@@ -179,24 +172,35 @@ func (s *Service) Name() string {
 // Watchdog for systemd keepalive responses.
 func (s *Service) Watchdog(ctx context.Context) func() error {
 	return func() error {
+
 		interval, err := daemon.SdWatchdogEnabled(false)
-		if err != nil || interval == 0 {
+		if err != nil {
 			return fmt.Errorf("unable to enable watchdog: %w", err)
 		}
 
+		if interval == 0 {
+			s.log.Debug("not running as service, watchdog disabled")
+
+			return nil
+		}
+
 		interval /= 2
-		s.log.Debug("watchdog start", zap.Duration("interval", interval))
+		s.log.Info("systemd watchdog start", zap.Duration("interval", interval))
 
 		timer := time.NewTimer(interval)
+
 		defer timer.Stop()
 
 		for {
 			select {
 			case <-ctx.Done():
-				return nil
+
+				return errors.Wrap(context.Cause(ctx), "watchdog")
 			case <-timer.C:
-				if _, err = daemon.SdNotify(false, daemon.SdNotifyWatchdog); err != nil {
-					s.log.Info("error sending systemd alive notify")
+
+				_, err = daemon.SdNotify(false, daemon.SdNotifyWatchdog)
+				if err != nil {
+					s.log.Info("error sending systemd alive notify", zap.Error(err))
 				}
 
 				timer.Reset(interval)
