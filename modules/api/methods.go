@@ -76,17 +76,17 @@ func newVerifyRequestSchema(args url.Values, key []byte) []zog.PrimitiveZogSchem
 
 				in := val.(string)
 				if in == "" {
-					ctx.AddIssue(&internals.ZogErr{Msg: ResponseCodeMissingParameter, EPath: "signature"})
+					ctx.AddIssue(&internals.ZogIssue{Message: ResponseCodeMissingParameter, Path: "signature"})
 
 					return false
 				}
 
 				hmacSignature, err := base64.StdEncoding.DecodeString(in)
 				if err != nil {
-					ctx.AddIssue(&internals.ZogErr{
-						Msg:   ResponseCodeMissingParameter,
-						EPath: "signature",
-						Err:   fmt.Errorf("base64 decoding failed: %w, input=%q", err, in),
+					ctx.AddIssue(&internals.ZogIssue{
+						Message: ResponseCodeMissingParameter,
+						Path:    "signature",
+						Err:     fmt.Errorf("base64 decoding failed: %w, input=%q", err, in),
 					})
 
 					return false
@@ -103,9 +103,9 @@ func newVerifyRequestSchema(args url.Values, key []byte) []zog.PrimitiveZogSchem
 				sort.Strings(data)
 
 				if signature := common.SignMap(data, key); !hmac.Equal(hmacSignature, signature) {
-					ctx.AddIssue(&internals.ZogErr{
-						Msg:   ResponseCodeBadSignature,
-						EPath: "signature",
+					ctx.AddIssue(&internals.ZogIssue{
+						Message: ResponseCodeBadSignature,
+						Path:    "signature",
 					})
 
 					return false
@@ -142,7 +142,7 @@ func (s *Service) verifyHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		for _, v := range errs {
-			if message := v.Message(); message != "" {
+			if message := v.Message; message != "" {
 				if errResp := s.responseW(w, message, s.apiKey, extra); errResp != nil {
 					log.Error("error sending backend error response", zap.Error(errResp))
 				}
