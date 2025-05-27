@@ -58,7 +58,7 @@ const (
 	retryTimeout  = 60 * time.Second
 )
 
-// Start storage service.
+// Start the storage service.
 func (s *Service) Start(ctx context.Context) error {
 	var err error
 

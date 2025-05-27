@@ -24,7 +24,7 @@ var (
 	ErrInvalidSecretLength = errors.New("invalid secret_id length")
 )
 
-// NewTestService creates new service for testing purposes.
+// NewTestService creates a new service for testing purposes.
 func NewTestService(log *zap.Logger, getterFunc KeyGetterFunc) (*Service, error) {
 	return &Service{log: log, getKeyFunc: getterFunc}, nil
 }

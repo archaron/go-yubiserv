@@ -12,11 +12,20 @@ import (
 	"github.com/archaron/go-yubiserv/misc"
 )
 
+// size of OTP record in bytes.
 const size = 16
 
 var (
+	// ErrInvalidLength indicates that the OTP token has an incorrect length.
+	// Valid YubiKey OTP must be not less than 16 bytes long (remaining bytes are ignored).
 	ErrInvalidLength = errors.New("invalid OTP length")
-	ErrInvalidCRC    = errors.New("invalid OTP CRC")
+
+	// ErrInvalidCRC indicates that the OTP token failed CRC validation.
+	// This typically means either:
+	// - The token was corrupted during transmission
+	// - An incorrect token was submitted
+	// - The token was generated with a wrong key
+	ErrInvalidCRC = errors.New("invalid OTP CRC")
 )
 
 // OTP yubikey's otp record representation.
@@ -72,7 +81,7 @@ func (o *OTP) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
-// Decrypt decrypts encrypted OTP with given encryption key from payload and unmarshalls it.
+// Decrypt decrypts an encrypted OTP using the provided encryption key from the payload and unmarshals it into its structured form.
 func (o *OTP) Decrypt(key []byte, payload []byte) error {
 	a, err := aes.NewCipher(key)
 	if err != nil {
@@ -89,7 +98,7 @@ func (o *OTP) Decrypt(key []byte, payload []byte) error {
 	return nil
 }
 
-// Encrypt encrypts current OTP structure with given encryption key and returns encrypted bytes.
+// Encrypt encrypts the current OTP structure using the provided encryption key and returns the resulting encrypted bytes.
 func (o *OTP) Encrypt(key []byte) ([]byte, error) {
 	a, err := aes.NewCipher(key)
 	if err != nil {
@@ -104,7 +113,7 @@ func (o *OTP) Encrypt(key []byte) ([]byte, error) {
 	return result, nil
 }
 
-// EncryptToModHex encrypts current OTP structure with given encryption key and returns encrypted modhex representation.
+// EncryptToModHex encrypts the OTP structure using the provided key and returns the result in modhex encoding.
 func (o *OTP) EncryptToModHex(key []byte) (string, error) {
 	data, err := o.Encrypt(key)
 	if err != nil {

@@ -12,7 +12,7 @@ var Module = module.Module{ //nolint:gochecknoglobals
 	{Constructor: newService},
 }
 
-// TestNewService creates new service for testing purposes.
+// TestNewService creates a new service for testing purposes.
 func TestNewService(log *zap.Logger, getterFunc KeyGetterFunc, db *sqlx.DB) *Service {
 	svc := &Service{log: log, getKeyFunc: getterFunc, db: db}
 

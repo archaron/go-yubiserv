@@ -6,8 +6,14 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/archaron/go-yubiserv)](https://goreportcard.com/report/github.com/archaron/go-yubiserv)
 ![Go version](https://img.shields.io/github/go-mod/go-version/archaron/go-yubiserv?style=flat&label=Go%20%3E%3D)
 
-Service for Yubikey local validation. Supports SQLite and Hashicorp Valut keystores.
+Yubikey local validation service supporting SQLite and Hashicorp Vault keystores.
 
+## Features
+
+- Supports both SQLite and Vault keystores
+- Configurable via CLI or environment variables
+- HMAC signature verification
+- TLS support for secure communication
 
 ## Command line parameters and environment variables 
 
@@ -32,19 +38,21 @@ Service for Yubikey local validation. Supports SQLite and Hashicorp Valut keysto
 
 ## Vault key store details
 All secrets are kept in vault KV storage:
-
-path: 
+Secrets are stored in Vault KV storage at:
 ```{vault-path}/<public-id>```
-Example: ```secret/data/yubiserv/vvcccciiktcv```
 
-data: 
+Example path:
+```secret/data/yubiserv/vvcccciiktcv```
+
+Value data: 
 ```json
 {
   "aes_key": "1234567890abcdef0123456789abcdef",
   "private_id": "01234567890a"
 }
 ```
-Both AES key and private identifier can be randomly generated with yubikey manager when creating new OTP slot.
+
+Both AES key and private identifier can be randomly generated with the yubikey manager when creating a new OTP slot.
 
 ## SQLite3 key store details
 

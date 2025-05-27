@@ -5,7 +5,7 @@ import (
 )
 
 type (
-	// Key represents secret key record in storage.
+	// Key represents a secret key record in storage.
 	Key struct {
 		ID        uint64 `db:"id"`
 		PublicID  string `db:"public_id"`

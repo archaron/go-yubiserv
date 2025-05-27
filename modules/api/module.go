@@ -29,7 +29,7 @@ func newAPIService(p serviceParams) (service.Service, error) {
 		return nil, ErrNoStorageModule
 	}
 
-	// Check if API secret key is specified
+	// Check if the API secret key is specified.
 	apiKey, err := makeAPIKey(p.Config.GetString("api.secret"))
 	if err != nil {
 		return nil, fmt.Errorf("cannot get api key: %w", err)

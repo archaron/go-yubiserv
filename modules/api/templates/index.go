@@ -1,11 +1,11 @@
-// Package templates stores html templates
+// Package templates provides HTML templates.
 package templates
 
 import (
 	"html/template"
 )
 
-// IndexTemplate is HTML template for index page.
+// IndexTemplate is an HTML template for the index page.
 func IndexTemplate() *template.Template {
 	indexTemplate, _ := template.New("index").Parse(`
 	<html>

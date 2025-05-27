@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// HexToModHex converts standard hex string to mod-hex format.
+// HexToModHex converts a standard hex string to mod-hex format.
 func HexToModHex(hex string) string {
 	hexmod := map[rune]rune{
 		'0': 'c',
@@ -98,7 +98,7 @@ func ModHexToDvorak(dvModHex string) string {
 	}, dvModHex)
 }
 
-// ModHexToHex converts mod-hex OPT to standard hex string.
+// ModHexToHex converts mod-hex OPT to a standard hex string.
 func ModHexToHex(modHex string) string {
 	modhex := map[rune]rune{
 		'c': '0',
@@ -149,17 +149,17 @@ func HexRand(count int) (string, error) {
 	return hex.EncodeToString(buf), nil
 }
 
-// IsModHex checks, if given string is in modhex encoding.
+// IsModHex checks if the given string uses modhex encoding.
 func IsModHex(s string) bool {
 	return regexp.MustCompile(`(?m)^[cbdefghijklnrtuv]+$`).MatchString(s)
 }
 
-// IsDvorakModHex checks, if given string is in Dvorak layout modhex encoding.
+// IsDvorakModHex checks if the given string uses Dvorak-layout modhex encoding.
 func IsDvorakModHex(s string) bool {
 	return regexp.MustCompile(`(?m)^[jxe.uidchtnbpygk]+$`).MatchString(s)
 }
 
-// IsAlphaNum checks, if given string is alphanumeric.
+// IsAlphaNum checks if the given string is alphanumeric.
 func IsAlphaNum(s string) bool {
 	return regexp.MustCompile(`(?m)^[a-zA-Z0-9]+$`).MatchString(s)
 }

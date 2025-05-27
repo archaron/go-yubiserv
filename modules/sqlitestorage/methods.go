@@ -66,7 +66,7 @@ func (s *Service) DecryptOTP(publicID, token string) (*common.OTP, error) {
 	return otp, nil
 }
 
-// StoreKey stores given key into database.
+// StoreKey stores given key into the database.
 func (s *Service) StoreKey(k *Key) error {
 	if _, err := s.db.Exec("REPLACE INTO Keys (id, public_id, created, private_id, lock_code, aes_key, active) VALUES (?,?,?,?,?,?,?)",
 		k.ID,
@@ -100,21 +100,37 @@ func (s *Service) TestCreateDatabase() error {
 	return s.createDatabase()
 }
 
+// createDatabase initializes the SQLite database schema required for YubiKey storage.
+// It creates the main Keys table with all necessary columns and constraints.
+//
+// The table structure includes:
+//   - public_id: YubiKey public identifier (modhex, 12 chars + 4 chars reserved)
+//   - id: Unique numeric identifier
+//   - created: ISO-8601 formatted timestamp
+//   - private_id: Private identifier (6-byte hex)
+//   - lock_code: Device lock code (optional)
+//   - aes_key: AES-128 key material (32-byte hex)
+//   - active: Key activation status
+//
+// Returns:
+//   - error if table creation fails, wrapped with context
 func (s *Service) createDatabase() error {
-	// Ensure tables are created
-	_, err := s.db.Exec("create table if not exists Keys (" +
-		"public_id varchar(16)," +
-		"id int not null," +
-		"created  varchar(24) not null," +
-		"private_id varchar(12) not null," +
-		"lock_code varchar(12) not null," +
-		"aes_key varchar(32) not null," +
-		"active boolean default true," +
-		"primary key (public_id)" +
-		")")
-	if err != nil {
-		return errors.Wrap(err, "failed to create table")
-	}
+	const createTableSQL = `
+CREATE TABLE IF NOT EXISTS Keys (
+    public_id  VARCHAR(16)  PRIMARY KEY,  -- YubiKey public ID
+    id         INTEGER      NOT NULL,     -- Sequential ID
+    created    VARCHAR(24)  NOT NULL,     -- ISO8601 timestamp
+    private_id VARCHAR(12)  NOT NULL,     -- Private ID (6 bytes hex)
+    lock_code  VARCHAR(12)  NOT NULL,     -- Lock code
+    aes_key    VARCHAR(32)  NOT NULL,     -- AES-128 key (16 bytes hex)
+    active     BOOLEAN      DEFAULT TRUE, -- Activation flag
+    CONSTRAINT chk_public_id CHECK (LENGTH(public_id) = 12),
+    CONSTRAINT chk_private_id CHECK (LENGTH(private_id) = 12),
+    CONSTRAINT chk_aes_key CHECK (LENGTH(aes_key) = 32)
+)`
 
+	if _, err := s.db.Exec(createTableSQL); err != nil {
+		return fmt.Errorf("failed to create Keys table: %w", err)
+	}
 	return nil
 }

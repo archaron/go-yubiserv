@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-// SignMap - signs specified strings slice with given apiKey.
+// SignMap - signs specified strings slice with the given apiKey.
 // @return []byte Raw HMAC signature.
 func SignMap(m []string, apiKey []byte) []byte {
 	mc := make([]string, len(m))
@@ -22,7 +22,7 @@ func SignMap(m []string, apiKey []byte) []byte {
 	return h.Sum(nil)
 }
 
-// SignMapToBase64 - signs specified strings slice with given apiKey.
+// SignMapToBase64 - signs specified strings slice with the given apiKey.
 // @return []byte Base64-encoded HMAC signature.
 func SignMapToBase64(m []string, apiKey []byte) string {
 	return base64.StdEncoding.EncodeToString(SignMap(m, apiKey))

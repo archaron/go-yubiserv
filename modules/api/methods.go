@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"reflect"
 	"regexp"
 	"sort"
 	"strconv"
@@ -20,6 +19,7 @@ import (
 
 	"github.com/Oudwins/zog"
 	"github.com/Oudwins/zog/internals"
+	"github.com/Oudwins/zog/zhttp"
 	"github.com/go-chi/render"
 	"go.uber.org/zap"
 
@@ -29,64 +29,72 @@ import (
 )
 
 type verifyReq struct {
-	RID       string `zog:"id"`
-	OTP       string `zog:"otp"`
-	Nonce     string `zog:"nonce"`
-	Signature string `zog:"h"`
+	ID        string `query:"id"`
+	OTP       string `query:"otp"`
+	Nonce     string `query:"nonce"`
+	Signature string `query:"h"`
 }
 
 //nolint:forcetypeassert
-func newVerifyRequestSchema(args url.Values, key []byte) []zog.PrimitiveZogSchema[string] {
+func newVerifyRequestSchema(args url.Values, key []byte) *zog.StructSchema {
+	return zog.Struct(zog.Shape{
+		"ID": zog.String().
+			Trim().
+			Required(zog.Message(ResponseCodeMissingParameter)).
+			Min(1, zog.Message(ResponseCodeMissingParameter)),
+		"OTP": zog.String().
+			Trim().
+			Required(zog.Message(ResponseCodeMissingParameter)).
+			Len(common.OTPMaxLength, zog.Message(ResponseCodeMissingParameter)).
+			Transform(
+				func(valPtr *string, _ internals.Ctx) error {
+					if valPtr == nil {
+						return errors.New(ResponseCodeMissingParameter)
+					}
 
-	return []zog.PrimitiveZogSchema[string]{
-		zog.String().Required(zog.Message(ResponseCodeMissingParameter)),
-		zog.String().Required(zog.Message(ResponseCodeMissingParameter)).
-			Len(common.OTPMaxLength, zog.Message(ResponseCodeMissingParameter)).PreTransform(
-			func(data any, _ internals.Ctx) (any, error) {
-				otp := data.(string)
+					otp := *valPtr
 
-				// Ensure lowercase OTP
-				otp = strings.ToLower(otp)
+					// Ensure lowercase OTP
+					otp = strings.ToLower(otp)
 
-				// Check for Dvorak layout and fix it
-				if misc.IsDvorakModHex(otp) {
-					otp = misc.DvorakToModHex(otp)
-				}
+					// Check for Dvorak layout and fix it
+					if misc.IsDvorakModHex(otp) {
+						otp = misc.DvorakToModHex(otp)
+					}
 
-				return otp, nil
-			},
-		),
-		zog.String().
+					*valPtr = otp
+					return nil
+				},
+			),
+		"Nonce": zog.String().
 			Required(zog.Message(ResponseCodeMissingParameter)).
 			Min(common.NonceMinLength, zog.Message(ResponseCodeMissingParameter)).
 			Max(common.NonceMaxLength, zog.Message(ResponseCodeMissingParameter)).
 			Match(regexp.MustCompile(`(?m)^[a-zA-Z0-9]+$`), zog.Message(ResponseCodeMissingParameter)),
-
-		zog.String().
-			Required(zog.Message(ResponseCodeMissingParameter), func(test *internals.Test) {
+		"Signature": zog.String().
+			Trim().
+			Required(zog.Message(ResponseCodeMissingParameter), func(test internals.TestInterface) {
 				if len(key) == 0 {
-
-					test = &zog.Test{}
+					test = &internals.Test[string]{}
 				}
 			}).
-			Test(zog.TestFunc("signature", func(val any, ctx internals.Ctx) bool {
+			Test(zog.TestFunc[*string]("signature", func(val *string, ctx internals.Ctx) bool {
 				if len(key) == 0 {
 					return true
 				}
 
-				in := val.(string)
-				if in == "" {
+				if val == nil || *val == "" {
 					ctx.AddIssue(&internals.ZogIssue{Message: ResponseCodeMissingParameter, Path: "signature"})
 
 					return false
 				}
 
-				hmacSignature, err := base64.StdEncoding.DecodeString(in)
+				hmacSignature, err := base64.StdEncoding.DecodeString(*val)
 				if err != nil {
 					ctx.AddIssue(&internals.ZogIssue{
 						Message: ResponseCodeMissingParameter,
 						Path:    "signature",
-						Err:     fmt.Errorf("base64 decoding failed: %w, input=%q", err, in),
+						Err:     fmt.Errorf("base64 decoding failed: %w, input=%q", err, *val),
 					})
 
 					return false
@@ -113,7 +121,7 @@ func newVerifyRequestSchema(args url.Values, key []byte) []zog.PrimitiveZogSchem
 
 				return true
 			})),
-	}
+	})
 }
 
 func (s *Service) verifyHandler(w http.ResponseWriter, r *http.Request) {
@@ -123,32 +131,18 @@ func (s *Service) verifyHandler(w http.ResponseWriter, r *http.Request) {
 
 	extra := make(map[string]string)
 
-	uri := r.URL.Query()
-	val := reflect.ValueOf(&req).Elem()
-	typ := reflect.TypeOf(req)
-	schema := newVerifyRequestSchema(uri, s.apiKey)
+	schema := newVerifyRequestSchema(r.URL.Query(), s.apiKey)
 
-	for i := range typ.NumField() {
-		tag := typ.Field(i).Tag.Get("zog")
+	errs := schema.Parse(zhttp.Request(r), &req)
 
-		var tmp string
-
-		errs := schema[i].Parse(uri.Get(tag), &tmp)
-
-		if len(errs) == 0 {
-			val.Field(i).SetString(tmp)
-
-			continue
-		}
-
-		for _, v := range errs {
-			if message := v.Message; message != "" {
+	if len(errs) != 0 {
+		for _, iv := range errs["$first"] {
+			if message := iv.Message; message != "" {
 				if errResp := s.responseW(w, message, s.apiKey, extra); errResp != nil {
 					log.Error("error sending backend error response", zap.Error(errResp))
 				}
 
-				log.Debug("message", zap.String("field", typ.Field(i).Name), zap.Error(v))
-
+				log.Debug("message", zap.String("field", iv.Path), zap.Error(iv))
 				return
 			}
 
@@ -264,7 +258,7 @@ func (s *Service) readiness(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// TestResponseParams used for report test result.
+// TestResponseParams used for a report test result.
 type TestResponseParams struct {
 	Result string
 }

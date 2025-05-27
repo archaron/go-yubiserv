@@ -50,12 +50,12 @@ func (s *Service) Start(ctx context.Context) error {
 
 	s.log.Debug("keys storage start", zap.String("db_path", s.dbPath))
 
-	s.db, err = sqlx.Open("sqlite3", s.dbPath+"?mode=rwc&cache=shared")
+	s.db, err = sqlx.Open("sqlite3", s.dbPath)
 	if err != nil {
 		return errors.Wrap(err, "failed to open database")
 	}
 
-	// Ensure database is created
+	// Ensure the database is created
 	if err := s.db.Ping(); err != nil {
 		return fmt.Errorf("could not connect to database: %w", err)
 	}
@@ -83,7 +83,7 @@ func (s *Service) Name() string {
 
 // Defaults for the sqlite storage service.
 func Defaults(ctx *cli.Context, v *viper.Viper) error {
-	v.SetDefault("sqlite.dbpath", ctx.String("sqlite-dbpath"))
+	v.SetDefault("sqlite.dbpath", ctx.String("sqlite-dbpath")+"?mode=rwc&cache=shared")
 
 	return nil
 }
