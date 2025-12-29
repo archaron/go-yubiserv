@@ -11,9 +11,9 @@ RUN set -x \
   && DEBIAN_FRONTEND="noninteractive" apt install -y wget ca-certificates git make ruby-dev build-essential
 
 RUN  cd /tmp \
-  && wget https://github.com/upx/upx/releases/download/v4.2.3/upx-4.2.3-amd64_linux.tar.xz \
-  && tar -xf upx-4.2.3-amd64_linux.tar.xz
-RUN cp /tmp/upx-4.2.3-amd64_linux/upx /sbin \
+  && wget https://github.com/upx/upx/releases/download/v5.0.2/upx-5.0.2-amd64_linux.tar.xz \
+  && tar -xf upx-5.0.2-amd64_linux.tar.xz
+RUN cp /tmp/upx-5.0.2-amd64_linux/upx /sbin \
     && chmod +x /sbin/upx
 RUN gem install fpm
 
