@@ -68,7 +68,7 @@ func (s *Service) DecryptOTP(publicID, token string) (*common.OTP, error) {
 func (s *Service) StoreKey(k *Key) error {
 	path := fmt.Sprintf("%s/%s", s.vaultPath, k.PublicID)
 
-	data := make(map[string]interface{})
+	data := make(map[string]any)
 
 	data["aes_key"] = k.AESKey
 	if k.PrivateID != "" {
@@ -100,9 +100,13 @@ func (s *Service) GetKey(publicID string) (*Key, error) {
 		return nil, common.ErrStorageNoKey
 	}
 
-	data, ok := secret.Data["data"].(map[string]interface{})
+	data, ok := secret.Data["data"].(map[string]any)
 	if !ok {
-		s.log.Warn("data type assertion failure in vault storage", zap.String("path", path), zap.Any("data", secret.Data))
+		s.log.Warn(
+			"data type assertion failure in vault storage",
+			zap.String("path", path),
+			zap.Any("data", secret.Data),
+		)
 
 		return nil, common.ErrStorageDecryptFail
 	}

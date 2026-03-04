@@ -32,6 +32,6 @@ var (
 	// typically due to:
 	// - Invalid AES key for the public ID
 	// - Corrupted or malformed OTP token
-	// - Cryptographic verification failure
+	// - Cryptographic verification failure.
 	ErrStorageDecryptFail = errors.New("otp request decryption failed")
 )

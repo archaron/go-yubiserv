@@ -24,7 +24,6 @@ var (
 )
 
 func newAPIService(p serviceParams) (service.Service, error) {
-
 	if p.Storage == nil {
 		return nil, ErrNoStorageModule
 	}

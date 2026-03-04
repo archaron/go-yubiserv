@@ -18,11 +18,11 @@ type Key struct {
 	Active    bool   `db:"active"`     // Activation status
 }
 
-// String implements fmt.Stringer interface for pretty-printing Key records.
+// String implements [fmt.Stringer] interface for pretty-printing Key records.
 // The output format is optimized for logging and debugging purposes.
 //
 // Example output:
-// YubiKey[ID:000000000001 Pub:vveirvt... Priv:abc123 AES:0123... Active:true]
+// YubiKey[ID:000000000001 Pub:vveirvt... Priv:abc123 AES:0123... Active:true].
 func (k *Key) String() string {
 	return fmt.Sprintf("YubiKey[ID:%012x Pub:%.6s... Priv:%.6s AES:%.6s... Active:%t]",
 		k.ID,

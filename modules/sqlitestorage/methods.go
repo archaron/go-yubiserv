@@ -1,6 +1,7 @@
 package sqlitestorage
 
 import (
+	"context"
 	"database/sql"
 	"encoding/hex"
 	"fmt"
@@ -19,7 +20,7 @@ func (s *Service) DecryptOTP(publicID, token string) (*common.OTP, error) {
 		zap.String("token", token),
 	)
 
-	key, err := s.getKeyFunc(publicID)
+	key, err := s.getKeyFunc(s.ctx, publicID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, common.ErrStorageNoKey
@@ -67,8 +68,11 @@ func (s *Service) DecryptOTP(publicID, token string) (*common.OTP, error) {
 }
 
 // StoreKey stores given key into the database.
-func (s *Service) StoreKey(k *Key) error {
-	if _, err := s.db.Exec("REPLACE INTO Keys (id, public_id, created, private_id, lock_code, aes_key, active) VALUES (?,?,?,?,?,?,?)",
+func (s *Service) StoreKey(ctx context.Context, k *Key) error {
+	if _, err := s.db.ExecContext(ctx, `
+		REPLACE INTO 
+		Keys (id, public_id, created, private_id, lock_code, aes_key, active)
+		VALUES (?,?,?,?,?,?,?)`,
 		k.ID,
 		k.PublicID,
 		k.Created,
@@ -84,9 +88,14 @@ func (s *Service) StoreKey(k *Key) error {
 }
 
 // GetKey retrieves key with given publicID from storage.
-func (s *Service) GetKey(publicID string) (*Key, error) {
+func (s *Service) GetKey(ctx context.Context, publicID string) (*Key, error) {
 	key := Key{}
-	row := s.db.QueryRowx("SELECT id, public_id, created, private_id, lock_code, aes_key, active FROM Keys WHERE public_id=?", publicID)
+	row := s.db.QueryRowxContext(ctx, `
+		SELECT id, public_id, created, private_id, lock_code, aes_key, active 
+		FROM Keys 
+		WHERE public_id=?`,
+		publicID,
+	)
 
 	if err := row.StructScan(&key); err != nil {
 		return nil, fmt.Errorf("cannot get key: %w", err)
@@ -96,8 +105,8 @@ func (s *Service) GetKey(publicID string) (*Key, error) {
 }
 
 // TestCreateDatabase creates a new database for testing.
-func (s *Service) TestCreateDatabase() error {
-	return s.createDatabase()
+func (s *Service) TestCreateDatabase(ctx context.Context) error {
+	return s.createDatabase(ctx)
 }
 
 // createDatabase initializes the SQLite database schema required for YubiKey storage.
@@ -114,7 +123,7 @@ func (s *Service) TestCreateDatabase() error {
 //
 // Returns:
 //   - error if table creation fails, wrapped with context
-func (s *Service) createDatabase() error {
+func (s *Service) createDatabase(ctx context.Context) error {
 	const createTableSQL = `
 CREATE TABLE IF NOT EXISTS Keys (
     public_id  VARCHAR(16)  PRIMARY KEY,  -- YubiKey public ID
@@ -129,7 +138,7 @@ CREATE TABLE IF NOT EXISTS Keys (
     CONSTRAINT chk_aes_key CHECK (LENGTH(aes_key) = 32)
 )`
 
-	if _, err := s.db.Exec(createTableSQL); err != nil {
+	if _, err := s.db.ExecContext(ctx, createTableSQL); err != nil {
 		return fmt.Errorf("failed to create Keys table: %w", err)
 	}
 	return nil

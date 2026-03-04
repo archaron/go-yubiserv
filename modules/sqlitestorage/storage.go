@@ -3,7 +3,6 @@ package sqlitestorage
 import (
 	"context"
 	"fmt"
-	"sync"
 
 	"github.com/im-kulikov/helium/service"
 	"github.com/jmoiron/sqlx"
@@ -18,7 +17,7 @@ import (
 )
 
 type (
-	KeyGetterFunc func(publicID string) (*Key, error)
+	KeyGetterFunc func(ctx context.Context, publicID string) (*Key, error)
 
 	serviceParams struct {
 		dig.In
@@ -29,6 +28,7 @@ type (
 
 	serviceOutParams struct {
 		dig.Out
+
 		Service service.Service `group:"services"`
 		Storage common.StorageInterface
 	}
@@ -38,9 +38,10 @@ type (
 		log        *zap.Logger
 		getKeyFunc KeyGetterFunc
 		db         *sqlx.DB
+		ctx        context.Context
+		cancel     context.CancelFunc
 
 		dbPath string
-		sync.Mutex
 	}
 )
 
@@ -49,6 +50,9 @@ func (s *Service) Start(ctx context.Context) error {
 	var err error
 
 	s.log.Debug("keys storage start", zap.String("db_path", s.dbPath))
+
+	s.ctx, s.cancel = context.WithCancel(ctx)
+	defer s.cancel()
 
 	s.db, err = sqlx.Open("sqlite3", s.dbPath)
 	if err != nil {
@@ -60,7 +64,7 @@ func (s *Service) Start(ctx context.Context) error {
 		return fmt.Errorf("could not connect to database: %w", err)
 	}
 
-	if err := s.createDatabase(); err != nil {
+	if err := s.createDatabase(s.ctx); err != nil {
 		return fmt.Errorf("could not create database: %w", err)
 	}
 
@@ -74,6 +78,10 @@ func (s *Service) Stop(_ context.Context) {
 	if s.db != nil {
 		_ = s.db.Close()
 	}
+
+	s.cancel()
+
+	<-s.ctx.Done()
 }
 
 // Name of the service.

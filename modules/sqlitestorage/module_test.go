@@ -1,6 +1,7 @@
 package sqlitestorage
 
 import (
+	"context"
 	"testing"
 
 	"github.com/jmoiron/sqlx"
@@ -17,7 +18,7 @@ func TestModule(t *testing.T) {
 		t.Parallel()
 
 		require.NotNil(t, Module)
-		require.Equal(t, 1, len(Module))
+		require.Len(t, Module, 1, "must be exactly one module")
 		require.NotNil(t, Module[0].Constructor)
 	})
 }
@@ -30,7 +31,7 @@ func TestTestNewService(t *testing.T) {
 
 		logger := zaptest.NewLogger(t)
 		mockDB := &sqlx.DB{}
-		customGetter := func(string) (*Key, error) { return nil, nil }
+		customGetter := func(context.Context, string) (*Key, error) { return nil, nil }
 
 		svc := TestNewService(logger, customGetter, mockDB)
 

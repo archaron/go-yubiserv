@@ -84,7 +84,9 @@ func newVerifyRequestSchema(args url.Values, key []byte) *zog.StructSchema {
 				}
 
 				if val == nil || *val == "" {
-					ctx.AddIssue(&internals.ZogIssue{Message: ResponseCodeMissingParameter, Path: []string{"signature"}})
+					ctx.AddIssue(
+						&internals.ZogIssue{Message: ResponseCodeMissingParameter, Path: []string{"signature"}},
+					)
 
 					return false
 				}
@@ -145,9 +147,7 @@ func (s *Service) verifyHandler(w http.ResponseWriter, r *http.Request) {
 				log.Debug("message", zap.Strings("field", iv.Path), zap.Error(iv))
 				return
 			}
-
 		}
-
 	}
 
 	// Ok, all checks done, let's try OTP verify
@@ -178,7 +178,6 @@ func (s *Service) verifyHandler(w http.ResponseWriter, r *http.Request) {
 		log.Error("error decrypting OTP", zap.Error(err))
 
 		if errors.Is(err, common.ErrStorageNoKey) {
-
 			if err = s.responseW(w, ResponseCodeNoSuchClient, s.apiKey, extra); err != nil {
 				log.Error("could not send response", zap.Error(err))
 			}
@@ -235,11 +234,10 @@ func (s *Service) verifyHandler(w http.ResponseWriter, r *http.Request) {
 	if err = s.responseW(w, ResponseCodeOK, s.apiKey, extra); err != nil {
 		log.Error("could not send response", zap.Error(err))
 	}
-
 }
 
 func (s *Service) version(w http.ResponseWriter, r *http.Request) {
-	render.JSON(w, r, map[string]interface{}{
+	render.JSON(w, r, map[string]any{
 		"version":   s.settings.BuildVersion,
 		"buildTime": s.settings.BuildTime,
 		"status":    "ok",
@@ -247,13 +245,13 @@ func (s *Service) version(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Service) health(w http.ResponseWriter, r *http.Request) {
-	render.JSON(w, r, map[string]interface{}{
+	render.JSON(w, r, map[string]any{
 		"status": "ok",
 	})
 }
 
 func (s *Service) readiness(w http.ResponseWriter, r *http.Request) {
-	render.JSON(w, r, map[string]interface{}{
+	render.JSON(w, r, map[string]any{
 		"status": "ok",
 	})
 }

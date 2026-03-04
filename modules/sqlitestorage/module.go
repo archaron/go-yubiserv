@@ -23,6 +23,17 @@ func TestNewService(log *zap.Logger, getterFunc KeyGetterFunc, db *sqlx.DB) *Ser
 	return svc
 }
 
+// TestNewServicePath creates a new service for testing purposes with database path.
+func TestNewServicePath(log *zap.Logger, getterFunc KeyGetterFunc, dbPath string) *Service {
+	svc := &Service{log: log, getKeyFunc: getterFunc, dbPath: dbPath}
+
+	if getterFunc == nil {
+		svc.getKeyFunc = svc.GetKey
+	}
+
+	return svc
+}
+
 func newService(p serviceParams) serviceOutParams {
 	svc := &Service{
 		log:    p.Logger,

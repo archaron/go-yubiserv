@@ -24,7 +24,7 @@ var (
 	// This typically means either:
 	// - The token was corrupted during transmission
 	// - An incorrect token was submitted
-	// - The token was generated with a wrong key
+	// - The token was generated with a wrong key.
 	ErrInvalidCRC = errors.New("invalid OTP CRC")
 )
 

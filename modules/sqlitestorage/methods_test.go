@@ -1,6 +1,7 @@
 package sqlitestorage_test
 
 import (
+	"context"
 	"database/sql"
 	"encoding/hex"
 	"errors"
@@ -29,7 +30,7 @@ func setupTestDB(t *testing.T) (*sqlx.DB, *sqlitestorage.Service) {
 	t.Cleanup(func() { require.NoError(t, db.Close()) })
 
 	svc := sqlitestorage.TestNewService(zaptest.NewLogger(t), nil, db)
-	require.NoError(t, svc.TestCreateDatabase(), "failed to create tables")
+	require.NoError(t, svc.TestCreateDatabase(t.Context()), "failed to create tables")
 
 	return db, svc
 }
@@ -70,7 +71,7 @@ func TestDecryptOTP(t *testing.T) {
 
 				svc := sqlitestorage.TestNewService(
 					zaptest.NewLogger(t),
-					func(publicID string) (*sqlitestorage.Key, error) {
+					func(_ context.Context, publicID string) (*sqlitestorage.Key, error) {
 						require.Equal(t, "cccccccccccc", publicID)
 						return &sqlitestorage.Key{
 							PublicID:  "cccccccccccc",
@@ -129,7 +130,7 @@ func TestDecryptOTP(t *testing.T) {
 
 				svc := sqlitestorage.TestNewService(
 					zaptest.NewLogger(t),
-					func(publicID string) (*sqlitestorage.Key, error) {
+					func(_ context.Context, publicID string) (*sqlitestorage.Key, error) {
 						return tc.mockKey, tc.mockError
 					}, nil)
 
@@ -144,7 +145,7 @@ func TestDecryptOTP(t *testing.T) {
 
 		svc := sqlitestorage.TestNewService(
 			zaptest.NewLogger(t),
-			func(publicID string) (*sqlitestorage.Key, error) {
+			func(_ context.Context, publicID string) (*sqlitestorage.Key, error) {
 				return &sqlitestorage.Key{
 					PublicID:  publicID,
 					PrivateID: hex.EncodeToString(make([]byte, 6)),
@@ -166,7 +167,7 @@ func TestDecryptOTP(t *testing.T) {
 
 		svc := sqlitestorage.TestNewService(
 			zaptest.NewLogger(t),
-			func(publicID string) (*sqlitestorage.Key, error) {
+			func(_ context.Context, _ string) (*sqlitestorage.Key, error) {
 				return key, nil
 			}, nil)
 
@@ -203,7 +204,7 @@ func TestDecryptOTP(t *testing.T) {
 
 		svc := sqlitestorage.TestNewService(
 			zaptest.NewLogger(t),
-			func(publicID string) (*sqlitestorage.Key, error) {
+			func(_ context.Context, publicID string) (*sqlitestorage.Key, error) {
 				require.Equal(t, "cccccccccccc", publicID)
 				return testKey, nil
 			}, nil)
@@ -219,7 +220,7 @@ func TestStoreKey(t *testing.T) {
 
 	t.Run("store new key", func(t *testing.T) {
 		key := generateTestKey(t)
-		require.NoError(t, svc.StoreKey(key))
+		require.NoError(t, svc.StoreKey(t.Context(), key))
 
 		// Verify the key was stored
 		var count int
@@ -230,11 +231,11 @@ func TestStoreKey(t *testing.T) {
 
 	t.Run("update existing key", func(t *testing.T) {
 		key := generateTestKey(t)
-		require.NoError(t, svc.StoreKey(key))
+		require.NoError(t, svc.StoreKey(t.Context(), key))
 
 		// Update the key
 		key.Active = false
-		require.NoError(t, svc.StoreKey(key))
+		require.NoError(t, svc.StoreKey(t.Context(), key))
 
 		// Verify the update
 		var active bool
@@ -247,7 +248,7 @@ func TestStoreKey(t *testing.T) {
 		invalidKey := &sqlitestorage.Key{
 			PublicID: "tooshort", // Invalid length
 		}
-		err := svc.StoreKey(invalidKey)
+		err := svc.StoreKey(t.Context(), invalidKey)
 		require.Error(t, err)
 	})
 }
@@ -258,17 +259,18 @@ func TestGetKey(t *testing.T) {
 	t.Run("get existing key", func(t *testing.T) {
 		key := generateTestKey(t)
 		_, err := db.NamedExec(
-			"INSERT INTO Keys (id, public_id, created, private_id, lock_code, aes_key, active) VALUES (:id, :public_id, :created, :private_id, :lock_code, :aes_key, :active)",
+			`INSERT INTO Keys (id, public_id, created, private_id, lock_code, aes_key, active) 
+				   VALUES (:id, :public_id, :created, :private_id, :lock_code, :aes_key, :active)`,
 			key)
 		require.NoError(t, err)
 
-		retrieved, err := svc.GetKey(key.PublicID)
+		retrieved, err := svc.GetKey(t.Context(), key.PublicID)
 		require.NoError(t, err)
 		require.Equal(t, key, retrieved)
 	})
 
 	t.Run("key not found", func(t *testing.T) {
-		_, err := svc.GetKey("nonexistent")
+		_, err := svc.GetKey(t.Context(), "nonexistent")
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "cannot get key")
 	})
@@ -277,7 +279,7 @@ func TestGetKey(t *testing.T) {
 		// Force close database to simulate error
 		require.NoError(t, db.Close())
 
-		_, err := svc.GetKey("any")
+		_, err := svc.GetKey(t.Context(), "any")
 		require.Error(t, err)
 	})
 }
@@ -289,7 +291,7 @@ func TestCreateDatabase(t *testing.T) {
 		t.Cleanup(func() { _ = db.Close() })
 
 		svc := sqlitestorage.TestNewService(zaptest.NewLogger(t), nil, db)
-		require.NoError(t, svc.TestCreateDatabase())
+		require.NoError(t, svc.TestCreateDatabase(t.Context()))
 
 		// Verify tables were created
 		var tableExists bool
@@ -304,7 +306,7 @@ func TestCreateDatabase(t *testing.T) {
 		_ = db.Close() // Close immediately to force error
 
 		svc := sqlitestorage.TestNewService(zaptest.NewLogger(t), nil, db)
-		err = svc.TestCreateDatabase()
+		err = svc.TestCreateDatabase(t.Context())
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "failed to create Keys table")
 	})

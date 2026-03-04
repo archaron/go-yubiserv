@@ -172,7 +172,6 @@ func (s *Service) Name() string {
 // Watchdog for systemd keepalive responses.
 func (s *Service) Watchdog(ctx context.Context) func() error {
 	return func() error {
-
 		interval, err := daemon.SdWatchdogEnabled(false)
 		if err != nil {
 			return fmt.Errorf("unable to enable watchdog: %w", err)

@@ -1,9 +1,10 @@
 package common
 
 type testVector struct {
+	OTP
+
 	AESKey []byte
 	Text   string
-	OTP
 }
 
 // TestVectors for OTP testing.

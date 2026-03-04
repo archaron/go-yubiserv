@@ -3,7 +3,6 @@ package vaultstorage
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	vault "github.com/hashicorp/vault/api"
@@ -30,6 +29,7 @@ type (
 
 	serviceOutParams struct {
 		dig.Out
+
 		Service service.Service `group:"services"`
 		Storage common.StorageInterface
 	}
@@ -47,8 +47,6 @@ type (
 		vaultPath        string
 
 		loginTimeout time.Duration
-
-		sync.Mutex
 	}
 )
 
@@ -94,7 +92,11 @@ func (s *Service) Start(ctx context.Context) error {
 			s.log.Debug("relogin to renew vault access token")
 
 			if err = s.login(ctx); err != nil {
-				s.log.Error("cannot relogin to vault, will retry after pause", zap.Duration("pause", retryTimeout), zap.Error(err))
+				s.log.Error(
+					"cannot relogin to vault, will retry after pause",
+					zap.Duration("pause", retryTimeout),
+					zap.Error(err),
+				)
 				timer.Reset(retryTimeout)
 
 				continue

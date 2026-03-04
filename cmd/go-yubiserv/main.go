@@ -112,7 +112,64 @@ func main() {
 	c.Usage = "Yubikey verification server"
 	c.UsageText = "Used to authenticate remote clients via yubikey OTP"
 
-	c.Commands = cli.Commands{
+	c.Commands = defaultCommands()
+
+	c.Flags = defaultFlags()
+
+	// Default action
+	c.Action = defaultAction
+
+	err := c.Run(os.Args)
+	err = dig.RootCause(err)
+	helium.Catch(err)
+}
+
+func defaultFlags() []cli.Flag {
+	return []cli.Flag{
+		&cli.StringFlag{
+			Name:    "config",
+			Aliases: []string{"c"},
+			Usage:   "Config file path (YAML)",
+		},
+
+		&cli.BoolFlag{Name: "debug", Aliases: []string{"d"}, Value: false, Usage: "Enable debug mode"},
+
+		&cli.StringFlag{Name: "log-format", Value: "console", Usage: "Log format: console/json"},
+
+		&cli.StringFlag{Name: "api-address", Value: ":8443", Usage: "Validation API bind address"},
+		&cli.StringFlag{Name: "api-timeout", Value: "1s", Usage: "Validation API connect/read timeout"},
+		&cli.StringFlag{Name: "api-secret", Value: "", Usage: "Validation API secret for HMAC signature verification," +
+			" empty to disable check"},
+
+		&cli.StringFlag{Name: "api-tls-cert", Value: "", Usage: "Validation API TLS cert file path"},
+		&cli.StringFlag{Name: "api-tls-key", Value: "", Usage: "Validation API TLS private key file path"},
+
+		&cli.StringFlag{Name: "keystore", Value: "vault", Usage: "Key store backend: sqlite, vault"},
+
+		&cli.StringFlag{Name: "sqlite-dbpath", Value: "yubiserv.db", Usage: "SQLite3 database path"},
+
+		&cli.StringFlag{Name: "vault-address", Value: "https://127.0.0.1:8200", Usage: "Vault server address"},
+		&cli.StringFlag{Name: "vault-path", Value: "secret/data/yubiserv", Usage: "Vault path to KV secrets store"},
+
+		&cli.StringFlag{Name: "vault-role-id", Value: "", Usage: "role_id for Vault auth, overrides role-file"},
+		&cli.StringFlag{Name: "vault-role-file", Value: "role_id", Usage: "Path to file containing role_id for Vault " +
+			"auth"},
+		&cli.StringFlag{Name: "vault-secret-id", Value: "", Usage: "secret_id for Vault auth, overrides secret-file"},
+		&cli.StringFlag{
+			Name:  "vault-secret-file",
+			Value: "secret_id",
+			Usage: "Path to file containing secret_id for Vault auth",
+		},
+		&cli.DurationFlag{
+			Name:  "vault-login-timeout",
+			Value: defaultVaultLoginTimeout,
+			Usage: "Vault server login timeout",
+		},
+	}
+}
+
+func defaultCommands() cli.Commands {
+	return cli.Commands{
 		{
 			Name: "generate",
 			Aliases: []string{
@@ -152,71 +209,34 @@ func main() {
 			},
 		},
 	}
+}
 
-	c.Flags = []cli.Flag{
-		&cli.StringFlag{
-			Name:    "config",
-			Aliases: []string{"c"},
-			Usage:   "Config file path (YAML)",
+func defaultAction(ctx *cli.Context) error {
+	switch ctx.String("keystore") {
+	case "vault":
+		modules = modules.Append(vaultstorage.Module)
+	case "sqlite":
+		modules = modules.Append(sqlitestorage.Module)
+	default:
+		return fmt.Errorf("%s: %w", ctx.String("keystore"), ErrUnknownKeyStore)
+	}
+
+	h, err := helium.New(&helium.Settings{
+		File:         ctx.String("config"),
+		Prefix:       misc.Prefix,
+		Name:         misc.Name,
+		Type:         "yaml",
+		BuildTime:    misc.Version,
+		BuildVersion: misc.Build,
+		Defaults: func(v *viper.Viper) error {
+			return defaults(ctx, v)
 		},
-
-		&cli.BoolFlag{Name: "debug", Aliases: []string{"d"}, Value: false, Usage: "Enable debug mode"},
-
-		&cli.StringFlag{Name: "log-format", Value: "console", Usage: "Log format: console/json"},
-
-		&cli.StringFlag{Name: "api-address", Value: ":8443", Usage: "Validation API bind address"},
-		&cli.StringFlag{Name: "api-timeout", Value: "1s", Usage: "Validation API connect/read timeout"},
-		&cli.StringFlag{Name: "api-secret", Value: "", Usage: "Validation API secret for HMAC signature verification, empty to disable check"},
-
-		&cli.StringFlag{Name: "api-tls-cert", Value: "", Usage: "Validation API TLS cert file path"},
-		&cli.StringFlag{Name: "api-tls-key", Value: "", Usage: "Validation API TLS private key file path"},
-
-		&cli.StringFlag{Name: "keystore", Value: "vault", Usage: "Key store backend: sqlite, vault"},
-
-		&cli.StringFlag{Name: "sqlite-dbpath", Value: "yubiserv.db", Usage: "SQLite3 database path"},
-
-		&cli.StringFlag{Name: "vault-address", Value: "https://127.0.0.1:8200", Usage: "Vault server address"},
-		&cli.StringFlag{Name: "vault-path", Value: "secret/data/yubiserv", Usage: "Vault path to KV secrets store"},
-
-		&cli.StringFlag{Name: "vault-role-id", Value: "", Usage: "role_id for Vault auth, overrides role-file"},
-		&cli.StringFlag{Name: "vault-role-file", Value: "role_id", Usage: "Path to file containing role_id for Vault auth"},
-		&cli.StringFlag{Name: "vault-secret-id", Value: "", Usage: "secret_id for Vault auth, overrides secret-file"},
-		&cli.StringFlag{Name: "vault-secret-file", Value: "secret_id", Usage: "Path to file containing secret_id for Vault auth"},
-		&cli.DurationFlag{Name: "vault-login-timeout", Value: defaultVaultLoginTimeout, Usage: "Vault server login timeout"},
+	}, modules)
+	if err != nil {
+		return fmt.Errorf("cannot initialize helium: %w", err)
 	}
 
-	// Default action
-	c.Action = func(ctx *cli.Context) error {
-		switch ctx.String("keystore") {
-		case "vault":
-			modules = modules.Append(vaultstorage.Module)
-		case "sqlite":
-			modules = modules.Append(sqlitestorage.Module)
-		default:
-			return fmt.Errorf("%s: %w", ctx.String("keystore"), ErrUnknownKeyStore)
-		}
-
-		h, err := helium.New(&helium.Settings{
-			File:         ctx.String("config"),
-			Prefix:       misc.Prefix,
-			Name:         misc.Name,
-			Type:         "yaml",
-			BuildTime:    misc.Version,
-			BuildVersion: misc.Build,
-			Defaults: func(v *viper.Viper) error {
-				return defaults(ctx, v)
-			},
-		}, modules)
-		if err != nil {
-			return fmt.Errorf("cannot initialize helium: %w", err)
-		}
-
-		return h.Run()
-	}
-
-	err := c.Run(os.Args)
-	err = dig.RootCause(err)
-	helium.Catch(err)
+	return h.Run()
 }
 
 func generator() cli.ActionFunc {
