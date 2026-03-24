@@ -116,6 +116,10 @@ func newVerifyRequestSchema(args url.Values, key []byte) *zog.StructSchema {
 					ctx.AddIssue(&internals.ZogIssue{
 						Message: ResponseCodeBadSignature,
 						Path:    []string{"signature"},
+						Params: map[string]any{
+							"must": base64.StdEncoding.EncodeToString(hmacSignature),
+							"has":  base64.StdEncoding.EncodeToString(signature),
+						},
 					})
 
 					return false
