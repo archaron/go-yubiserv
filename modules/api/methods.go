@@ -18,7 +18,7 @@ import (
 	"time"
 
 	"github.com/Oudwins/zog"
-	"github.com/Oudwins/zog/internals"
+	"github.com/Oudwins/zog/pkgs/internals"
 	"github.com/Oudwins/zog/zhttp"
 	"github.com/go-chi/render"
 	"go.uber.org/zap"
