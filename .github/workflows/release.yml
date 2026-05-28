@@ -1,0 +1,47 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build builder image
+        run: docker build ./build -t yubiserv-builder
+
+      - name: Build packages
+        run: |
+          docker run --rm \
+            -e VERSION=${{ github.ref_name }} \
+            -e BUILD=$(date -u +%s%N) \
+            -v ${{ github.workspace }}:/src \
+            -w /src \
+            yubiserv-builder
+
+      - name: Find .deb package
+        id: deb
+        run: |
+          DEB_FILE=$(ls release/deb/yubiserv_*.deb | head -1)
+          echo "path=$DEB_FILE" >> $GITHUB_OUTPUT
+          echo "name=$(basename "$DEB_FILE")" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          files: ${{ steps.deb.outputs.path }}
+          generate_release_notes: true
