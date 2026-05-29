@@ -91,8 +91,8 @@ func (o *OTP) Decrypt(key []byte, payload []byte) error {
 	decrypted := make([]byte, len(payload))
 	a.Decrypt(decrypted, payload)
 
-	if err := o.UnmarshalBinary(decrypted); err != nil {
-		return errors.Wrap(err, "cannot unmarshall otp")
+	if oerr := o.UnmarshalBinary(decrypted); oerr != nil {
+		return errors.Wrap(oerr, "cannot unmarshall otp")
 	}
 
 	return nil

@@ -2,7 +2,9 @@ package sqlitestorage_test
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -12,7 +14,6 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
-	"golang.org/x/exp/rand"
 
 	"github.com/archaron/go-yubiserv/common"
 	"github.com/archaron/go-yubiserv/misc"
@@ -48,9 +49,17 @@ func generateTestKey(t *testing.T) *sqlitestorage.Key {
 	_, err = rand.Read(lockCode)
 	require.NoError(t, err)
 
+	var idBuf [8]byte
+	_, err = rand.Read(idBuf[:])
+	require.NoError(t, err)
+
+	var publicIDBuf [4]byte
+	_, err = rand.Read(publicIDBuf[:])
+	require.NoError(t, err)
+
 	return &sqlitestorage.Key{
-		ID:        rand.Uint64() & 0xFFFFFFFFFFFF,
-		PublicID:  misc.HexToModHex(fmt.Sprintf("%012x", rand.Uint32())),
+		ID:        binary.NativeEndian.Uint64(idBuf[:]) & 0xFFFFFFFFFFFF,
+		PublicID:  misc.HexToModHex(fmt.Sprintf("%012x", binary.NativeEndian.Uint32(publicIDBuf[:]))),
 		PrivateID: hex.EncodeToString(privateID),
 		AESKey:    hex.EncodeToString(aesKey),
 		LockCode:  hex.EncodeToString(lockCode),
@@ -130,7 +139,7 @@ func TestDecryptOTP(t *testing.T) {
 
 				svc := sqlitestorage.TestNewService(
 					zaptest.NewLogger(t),
-					func(_ context.Context, publicID string) (*sqlitestorage.Key, error) {
+					func(_ context.Context, _ string) (*sqlitestorage.Key, error) {
 						return tc.mockKey, tc.mockError
 					}, nil)
 

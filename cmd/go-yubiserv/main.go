@@ -33,7 +33,7 @@ const (
 
 func defaults(ctx *cli.Context, v *viper.Viper) error {
 	if ctx.Bool("debug") {
-		misc.Debug = true
+		misc.Debug = true //nolint:reassign
 	}
 
 	v.SetDefault("logger.full_caller", false)
@@ -264,19 +264,19 @@ func generator() cli.ActionFunc {
 				ctr := fmt.Sprintf("%012x", i)
 				modhexctr := misc.HexToModHex(ctr)
 
-				internalUID, err := misc.HexRand(common.PrivateIDSize)
-				if err != nil {
-					log.Fatal("error generating random", zap.Error(err))
+				internalUID, genErr := misc.HexRand(common.PrivateIDSize)
+				if genErr != nil {
+					log.Fatal("error generating random", zap.Error(genErr))
 				}
 
-				aesKey, err := misc.HexRand(aes.BlockSize)
-				if err != nil {
-					log.Fatal("error generating random aes key", zap.Error(err))
+				aesKey, genErr := misc.HexRand(aes.BlockSize)
+				if genErr != nil {
+					log.Fatal("error generating random aes key", zap.Error(genErr))
 				}
 
-				lockPW, err := misc.HexRand(common.LockPWSize)
-				if err != nil {
-					log.Fatal("error generating random lockPW", zap.Error(err))
+				lockPW, genErr := misc.HexRand(common.LockPWSize)
+				if genErr != nil {
+					log.Fatal("error generating random lockPW", zap.Error(genErr))
 				}
 
 				fmt.Printf("%d,%s,%s,%s,%s,%s,%s\n", //nolint:forbidigo

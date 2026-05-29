@@ -82,7 +82,7 @@ func makeAPIKey(secret string) ([]byte, error) {
 }
 
 // Printf function for HTTP debug log.
-func (s *Service) Printf(format string, args ...interface{}) {
+func (s *Service) Printf(format string, args ...any) {
 	if misc.Debug {
 		s.log.Warn(fmt.Sprintf(format, args...))
 	}

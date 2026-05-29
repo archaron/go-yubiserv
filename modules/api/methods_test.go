@@ -1,4 +1,4 @@
-package api
+package api //nolint:testpackage
 
 import (
 	"encoding/base64"
@@ -105,7 +105,6 @@ func Test_verify(t *testing.T) {
 
 	t.Run("should error on not matching h with apiKey set", func(t *testing.T) {
 		t.Parallel()
-
 		q := url.Values{
 			"id":    []string{"2"},
 			"nonce": []string{"jrFwbaYFhn0HoxZIsd9LQ6w2ceU"},
@@ -146,18 +145,16 @@ func Test_verify(t *testing.T) {
 	})
 }
 
-func Test_verifyNnParams(t *testing.T) {
+func Test_verifyNnParams(t *testing.T) { //nolint:tparallel
 	t.Parallel()
 
 	svc := createTestService(t, &testStorage{})
 
 	t.Run("should error on no id", func(t *testing.T) {
-		t.Parallel()
-
 		q := url.Values{
 			"otp":   []string{"cccccccccccbiucvrkjiegbhidrcicvlgrcgkgurhjnj"},
 			"nonce": []string{"jrFwbaYFhn0HoxZIsd9LQ6w2ceU"},
-			"h":     []string{"Fieq5toKf4ts+Lp2nCdibXjeUDI="},
+			"h":     []string{"ccSijO7Ft09W9e9wu3dXbhFfzyE="},
 		}
 
 		values := decodedRequest(t, q, svc.verifyHandler)
@@ -165,12 +162,10 @@ func Test_verifyNnParams(t *testing.T) {
 	})
 
 	t.Run("should error on no otp", func(t *testing.T) {
-		t.Parallel()
-
 		q := url.Values{
 			"id":    []string{"2"},
 			"nonce": []string{"jrFwbaYFhn0HoxZIsd9LQ6w2ceU"},
-			"h":     []string{"Fieq5toKf4ts+Lp2nCdibXjeUDI="},
+			"h":     []string{"Ht1cdOM6H/9PdTG202AYgqJT3mk="},
 		}
 
 		values := decodedRequest(t, q, svc.verifyHandler)
@@ -178,12 +173,10 @@ func Test_verifyNnParams(t *testing.T) {
 	})
 
 	t.Run("should error on no nonce", func(t *testing.T) {
-		t.Parallel()
-
 		q := url.Values{
 			"id":  []string{"2"},
 			"otp": []string{"cccccccccccbiucvrkjiegbhidrcicvlgrcgkgurhjnj"},
-			"h":   []string{"Fieq5toKf4ts+Lp2nCdibXjeUDI="},
+			"h":   []string{"7PO00ewTSry/sCdMqX9lLMcvoVo="},
 		}
 
 		values := decodedRequest(t, q, svc.verifyHandler)
@@ -191,8 +184,6 @@ func Test_verifyNnParams(t *testing.T) {
 	})
 
 	t.Run("should error on no h with apiKey set", func(t *testing.T) {
-		t.Parallel()
-
 		q := url.Values{
 			"id":    []string{"2"},
 			"nonce": []string{"jrFwbaYFhn0HoxZIsd9LQ6w2ceU"},
@@ -281,7 +272,7 @@ func decodeAnswer(t *testing.T, body string) map[string]string {
 
 	values := map[string]string{}
 
-	for _, s := range strings.Split(strings.TrimSpace(body), "\n") {
+	for s := range strings.SplitSeq(strings.TrimSpace(body), "\n") {
 		v := strings.SplitN(s, "=", 2)
 		if len(v) > 1 {
 			values[v[0]] = v[1]

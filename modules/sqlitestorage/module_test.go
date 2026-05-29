@@ -1,4 +1,4 @@
-package sqlitestorage
+package sqlitestorage //nolint:testpackage
 
 import (
 	"context"
@@ -31,7 +31,7 @@ func TestTestNewService(t *testing.T) {
 
 		logger := zaptest.NewLogger(t)
 		mockDB := &sqlx.DB{}
-		customGetter := func(context.Context, string) (*Key, error) { return nil, nil }
+		customGetter := func(context.Context, string) (*Key, error) { return &Key{}, nil }
 
 		svc := TestNewService(logger, customGetter, mockDB)
 

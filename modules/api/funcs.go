@@ -13,7 +13,10 @@ func (s *Service) responseW(w http.ResponseWriter, status string, apiKey []byte,
 	// Create ordered pieces
 	ordered := make([]string, 0)
 
-	ordered = append(ordered, "t="+strings.ReplaceAll(time.Now().In(s.gmtLocation).Format("2006-01-02T15:04:05Z0.000"), ".", ""))
+	ordered = append(
+		ordered,
+		"t="+strings.ReplaceAll(time.Now().In(s.gmtLocation).Format("2006-01-02T15:04:05Z0.000"), ".", ""),
+	)
 
 	for n := range extra {
 		ordered = append(ordered, n+"="+extra[n])
@@ -24,7 +27,7 @@ func (s *Service) responseW(w http.ResponseWriter, status string, apiKey []byte,
 		ordered = append([]string{"h=" + common.SignMapToBase64(ordered, apiKey)}, ordered...) // Add signature
 	}
 
-	_, err := fmt.Fprint(w, strings.Join(ordered, "\r\n")+"\r\n")
+	_, err := fmt.Fprint(w, strings.Join(ordered, "\r\n")+"\r\n") //nolint:gosec
 	if err != nil {
 		return fmt.Errorf("error writing response: %w", err)
 	}

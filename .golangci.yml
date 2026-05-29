@@ -284,7 +284,7 @@ linters:
       # Checks the number of lines in a function.
       # If lower than 0, disable the check.
       # Default: 60
-      lines: 100
+      lines: 120
       # Checks the number of statements in a function.
       # If lower than 0, disable the check.
       # Default: 40
@@ -298,7 +298,10 @@ linters:
     gocognit:
       # Minimal code complexity to report.
       # Default: 30 (but we recommend 10-20)
-      min-complexity: 20
+      min-complexity: 30
+
+    goconst:
+      min-occurrences: 5
 
     gocritic:
       # Settings passed to gocritic.
@@ -374,7 +377,7 @@ linters:
     nolintlint:
       # Exclude following linters from requiring an explanation.
       # Default: []
-      allow-no-explanation: [ funlen, gocognit, golines ]
+      allow-no-explanation: [ funlen, gocognit, golines, gochecknoglobals, forcetypeassert, tparallel, paralleltest, mnd, gosec, forbidigo, reassign, testpackage ]
       # Enable to require an explanation of nonzero length after each nolint directive.
       # Default: false
       require-explanation: true

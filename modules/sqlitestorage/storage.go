@@ -60,12 +60,12 @@ func (s *Service) Start(ctx context.Context) error {
 	}
 
 	// Ensure the database is created
-	if err := s.db.Ping(); err != nil {
-		return fmt.Errorf("could not connect to database: %w", err)
+	if pingErr := s.db.PingContext(s.ctx); pingErr != nil {
+		return fmt.Errorf("could not connect to database: %w", pingErr)
 	}
 
-	if err := s.createDatabase(s.ctx); err != nil {
-		return fmt.Errorf("could not create database: %w", err)
+	if createErr := s.createDatabase(s.ctx); createErr != nil {
+		return fmt.Errorf("could not create database: %w", createErr)
 	}
 
 	<-ctx.Done()

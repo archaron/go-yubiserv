@@ -55,8 +55,8 @@ func TestOTP(t *testing.T) {
 				SessionCounter:   0,
 				Random:           uint16(i),
 			}
-			result, err := otp.EncryptToModHex(aesKey)
-			require.NoError(t, err, "cannot encrypt OTP '%s'", otp)
+			result, encErr := otp.EncryptToModHex(aesKey)
+			require.NoError(t, encErr, "cannot encrypt OTP '%s'", otp)
 			require.NotEmpty(t, result, "empty cannot encrypt OTP '%s'", otp)
 		}
 	})

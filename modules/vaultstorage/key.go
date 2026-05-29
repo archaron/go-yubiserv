@@ -18,7 +18,8 @@ type (
 )
 
 func (k *Key) String() string {
-	return fmt.Sprintf("YubiKey: ID: %012x, PublicID: %s, PrivateID: %s, AESKey: %s, LockCode: %s Active: %t Created: %s",
+	return fmt.Sprintf(
+		"YubiKey: ID: %012x, PublicID: %s, PrivateID: %s, AESKey: %s, LockCode: %s Active: %t Created: %s",
 		k.ID,
 		k.PublicID,
 		k.PrivateID,

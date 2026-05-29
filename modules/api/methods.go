@@ -37,6 +37,52 @@ type verifyReq struct {
 
 //nolint:forcetypeassert
 func newVerifyRequestSchema(args url.Values, key []byte) *zog.StructSchema {
+	sigField := zog.String().Trim()
+	if len(key) > 0 {
+		sigField = sigField.Required(zog.Message(ResponseCodeMissingParameter))
+	}
+	sigField = sigField.Test(zog.TestFunc[*string]("signature", func(val *string, ctx internals.Ctx) bool {
+		if len(key) == 0 || val == nil || *val == "" {
+			return true
+		}
+
+		hmacSignature, err := base64.StdEncoding.DecodeString(*val)
+		if err != nil {
+			ctx.AddIssue(&internals.ZogIssue{
+				Message: ResponseCodeMissingParameter,
+				Path:    []string{"signature"},
+				Err:     fmt.Errorf("base64 decoding failed: %w, input=%q", err, *val),
+			})
+
+			return false
+		}
+
+		var data []string
+		for k := range args {
+			if k == "h" {
+				continue
+			}
+			data = append(data, k+"="+args.Get(k))
+		}
+
+		sort.Strings(data)
+
+		if signature := common.SignMap(data, key); !hmac.Equal(hmacSignature, signature) {
+			ctx.AddIssue(&internals.ZogIssue{
+				Message: ResponseCodeBadSignature,
+				Path:    []string{"signature"},
+				Params: map[string]any{
+					"must": base64.StdEncoding.EncodeToString(hmacSignature),
+					"has":  base64.StdEncoding.EncodeToString(signature),
+				},
+			})
+
+			return false
+		}
+
+		return true
+	}))
+
 	return zog.Struct(zog.Shape{
 		"ID": zog.String().
 			Trim().
@@ -71,62 +117,7 @@ func newVerifyRequestSchema(args url.Values, key []byte) *zog.StructSchema {
 			Min(common.NonceMinLength, zog.Message(ResponseCodeMissingParameter)).
 			Max(common.NonceMaxLength, zog.Message(ResponseCodeMissingParameter)).
 			Match(regexp.MustCompile(`(?m)^[a-zA-Z0-9]+$`), zog.Message(ResponseCodeMissingParameter)),
-		"Signature": zog.String().
-			Trim().
-			Required(zog.Message(ResponseCodeMissingParameter), func(test internals.TestInterface) {
-				if len(key) == 0 {
-					test = &internals.Test[string]{}
-				}
-			}).
-			Test(zog.TestFunc[*string]("signature", func(val *string, ctx internals.Ctx) bool {
-				if len(key) == 0 {
-					return true
-				}
-
-				if val == nil || *val == "" {
-					ctx.AddIssue(
-						&internals.ZogIssue{Message: ResponseCodeMissingParameter, Path: []string{"signature"}},
-					)
-
-					return false
-				}
-
-				hmacSignature, err := base64.StdEncoding.DecodeString(*val)
-				if err != nil {
-					ctx.AddIssue(&internals.ZogIssue{
-						Message: ResponseCodeMissingParameter,
-						Path:    []string{"signature"},
-						Err:     fmt.Errorf("base64 decoding failed: %w, input=%q", err, *val),
-					})
-
-					return false
-				}
-
-				var data []string
-				for k := range args {
-					if k == "h" {
-						continue
-					}
-					data = append(data, k+"="+args.Get(k))
-				}
-
-				sort.Strings(data)
-
-				if signature := common.SignMap(data, key); !hmac.Equal(hmacSignature, signature) {
-					ctx.AddIssue(&internals.ZogIssue{
-						Message: ResponseCodeBadSignature,
-						Path:    []string{"signature"},
-						Params: map[string]any{
-							"must": base64.StdEncoding.EncodeToString(hmacSignature),
-							"has":  base64.StdEncoding.EncodeToString(signature),
-						},
-					})
-
-					return false
-				}
-
-				return true
-			})),
+		"Signature": sigField,
 	})
 }
 
@@ -311,7 +302,7 @@ func (s *Service) testVerifyRequest(r *http.Request) (string, error) {
 	data = append(data, "h="+url.QueryEscape(sign))
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/?"+strings.Join(data, "&"), nil)
+	req := httptest.NewRequestWithContext(r.Context(), http.MethodGet, "/?"+strings.Join(data, "&"), nil)
 	s.verifyHandler(rec, req)
 
 	return rec.Body.String(), nil

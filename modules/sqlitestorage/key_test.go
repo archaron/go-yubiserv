@@ -1,9 +1,11 @@
-package sqlitestorage
+package sqlitestorage_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/archaron/go-yubiserv/modules/sqlitestorage"
 )
 
 func TestKeyStruct(t *testing.T) {
@@ -12,7 +14,7 @@ func TestKeyStruct(t *testing.T) {
 	t.Run("struct fields and tags", func(t *testing.T) {
 		t.Parallel()
 
-		key := Key{
+		key := sqlitestorage.Key{
 			ID:        123456789012,
 			PublicID:  "cccccccccccc",
 			Created:   "2023-01-01T00:00:00Z",
@@ -37,12 +39,12 @@ func TestKeyStruct(t *testing.T) {
 
 		testCases := []struct {
 			name     string
-			key      Key
+			key      sqlitestorage.Key
 			expected string
 		}{
 			{
 				name: "standard key",
-				key: Key{
+				key: sqlitestorage.Key{
 					ID:        1,
 					PublicID:  "cccccccccccc",
 					PrivateID: "112233445566",
@@ -53,7 +55,7 @@ func TestKeyStruct(t *testing.T) {
 			},
 			{
 				name: "inactive key",
-				key: Key{
+				key: sqlitestorage.Key{
 					ID:        2,
 					PublicID:  "dddddddddddd",
 					PrivateID: "aabbccddeeff",
@@ -64,7 +66,7 @@ func TestKeyStruct(t *testing.T) {
 			},
 			{
 				name: "empty values",
-				key: Key{
+				key: sqlitestorage.Key{
 					ID:        0,
 					PublicID:  "",
 					PrivateID: "",
@@ -86,7 +88,7 @@ func TestKeyStruct(t *testing.T) {
 	t.Run("string truncation", func(t *testing.T) {
 		t.Parallel()
 
-		key := Key{
+		key := sqlitestorage.Key{
 			ID:        1,
 			PublicID:  "aabbccddeeff",                     // Exactly 12 chars
 			PrivateID: "112233445566",                     // Exactly 12 chars

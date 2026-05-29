@@ -102,13 +102,13 @@ func (s *Service) Start(ctx context.Context) error {
 				continue
 			}
 
-			ttl, err := s.vaultToken.TokenTTL()
-			if err != nil {
-				return fmt.Errorf("cannot get vault token TTL: %w", err)
+			newTTL, ttlErr := s.vaultToken.TokenTTL()
+			if ttlErr != nil {
+				return fmt.Errorf("cannot get vault token TTL: %w", ttlErr)
 			}
 
-			reloginTime = (ttl * reLoginRatioM) / reLoginRatioD
-			s.log.Debug("renewed vault token", zap.Duration("ttl", ttl), zap.Duration("relogin_time", reloginTime))
+			reloginTime = (newTTL * reLoginRatioM) / reLoginRatioD
+			s.log.Debug("renewed vault token", zap.Duration("ttl", newTTL), zap.Duration("relogin_time", reloginTime))
 
 			timer.Reset(reloginTime)
 		}
