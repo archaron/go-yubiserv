@@ -11,8 +11,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Oudwins/zog/zhttp"
 	"github.com/im-kulikov/helium/settings"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
+	"github.com/urfave/cli/v2"
 	"go.uber.org/zap/zaptest"
 
 	"github.com/archaron/go-yubiserv/common"
@@ -144,7 +147,6 @@ func Test_verify(t *testing.T) {
 		require.Equal(t, "BAD_OTP", values["status"])
 	})
 }
-
 func Test_verifyNnParams(t *testing.T) { //nolint:tparallel
 	t.Parallel()
 
@@ -314,4 +316,171 @@ func decodedRequest(t *testing.T, q url.Values, handler http.HandlerFunc) map[st
 	require.Contains(t, values, "status")
 
 	return values
+}
+
+func Test_makeAPIKey(t *testing.T) {
+	t.Parallel()
+
+	t.Run("empty secret", func(t *testing.T) {
+		t.Parallel()
+
+		key, err := makeAPIKey("")
+		require.NoError(t, err)
+		require.Nil(t, key)
+	})
+
+	t.Run("valid base64", func(t *testing.T) {
+		t.Parallel()
+
+		key, err := makeAPIKey("mG5be6ZJU1qBGz24yPh/ESM3UdU=")
+		require.NoError(t, err)
+		require.NotNil(t, key)
+		require.Len(t, key, 20)
+	})
+
+	t.Run("invalid base64", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := makeAPIKey("!!!not-base64!!!")
+		require.ErrorContains(t, err, "failed to decode api key")
+	})
+}
+
+func Test_Defaults(t *testing.T) {
+	v := viper.New()
+	app := &cli.App{
+		Flags: []cli.Flag{
+			&cli.StringFlag{Name: "api-address", Value: ":8443"},
+			&cli.StringFlag{Name: "api-timeout", Value: "2s"},
+			&cli.StringFlag{Name: "api-secret", Value: "test-secret"},
+			&cli.StringFlag{Name: "api-tls-cert", Value: ""},
+			&cli.StringFlag{Name: "api-tls-key", Value: ""},
+		},
+		Action: func(c *cli.Context) error {
+			require.NoError(t, Defaults(c, v))
+
+			require.Equal(t, ":8443", v.GetString("api.address"))
+			require.Equal(t, "2s", v.GetString("api.timeout"))
+			require.Equal(t, "test-secret", v.GetString("api.secret"))
+			require.Empty(t, v.GetString("api.tls_cert"))
+			require.Empty(t, v.GetString("api.tls_key"))
+
+			return nil
+		},
+	}
+
+	require.NoError(t, app.Run([]string{"test"}))
+}
+
+func Test_Defaults_TLS(t *testing.T) {
+	v := viper.New()
+	app := &cli.App{
+		Flags: []cli.Flag{
+			&cli.StringFlag{Name: "api-address", Value: ":8443"},
+			&cli.StringFlag{Name: "api-timeout", Value: "1s"},
+			&cli.StringFlag{Name: "api-secret", Value: ""},
+			&cli.StringFlag{Name: "api-tls-cert", Value: "/path/cert.pem"},
+			&cli.StringFlag{Name: "api-tls-key", Value: "/path/key.pem"},
+		},
+		Action: func(c *cli.Context) error {
+			require.NoError(t, Defaults(c, v))
+
+			require.Equal(t, "/path/cert.pem", v.GetString("api.tls_cert"))
+			require.Equal(t, "/path/key.pem", v.GetString("api.tls_key"))
+
+			return nil
+		},
+	}
+
+	require.NoError(t, app.Run([]string{"test"}))
+}
+
+func Test_Defaults_TLS_MissingKey(t *testing.T) {
+	v := viper.New()
+	app := &cli.App{
+		Flags: []cli.Flag{
+			&cli.StringFlag{Name: "api-address", Value: ":8443"},
+			&cli.StringFlag{Name: "api-timeout", Value: "1s"},
+			&cli.StringFlag{Name: "api-secret", Value: ""},
+			&cli.StringFlag{Name: "api-tls-cert", Value: "/path/cert.pem"},
+			&cli.StringFlag{Name: "api-tls-key", Value: ""},
+		},
+		Action: func(c *cli.Context) error {
+			require.ErrorIs(t, Defaults(c, v), ErrTLSParams)
+			return nil
+		},
+	}
+
+	require.NoError(t, app.Run([]string{"test"}))
+}
+
+func Test_Name(t *testing.T) {
+	t.Parallel()
+
+	svc := &Service{}
+	require.Equal(t, "api", svc.Name())
+}
+
+func Test_Stop(t *testing.T) {
+	t.Parallel()
+
+	svc := &Service{
+		started: make(chan struct{}),
+		cancel:  func() {},
+	}
+	close(svc.started)
+	require.NotPanics(t, func() {
+		svc.Stop(t.Context())
+	})
+}
+
+func Test_newRouter(t *testing.T) {
+	t.Parallel()
+
+	svc := &Service{}
+	handler := svc.newRouter()
+	require.NotNil(t, handler)
+}
+
+func Test_Printf(t *testing.T) {
+	t.Parallel()
+
+	t.Run("debug disabled", func(t *testing.T) {
+		t.Parallel()
+
+		misc.Debug = false //nolint:reassign
+		svc := createTestService(t, &testStorage{})
+		require.NotPanics(t, func() {
+			svc.Printf("test message %s", "arg")
+		})
+	})
+
+	t.Run("debug enabled", func(t *testing.T) {
+		misc.Debug = true                        //nolint:reassign
+		t.Cleanup(func() { misc.Debug = false }) //nolint:reassign
+
+		svc := createTestService(t, &testStorage{})
+		require.NotPanics(t, func() {
+			svc.Printf("test message %s", "arg")
+		})
+	})
+}
+
+func Test_newVerifyRequestSchema_emptyKey(t *testing.T) {
+	t.Parallel()
+
+	schema := newVerifyRequestSchema(url.Values{}, nil)
+	require.NotNil(t, schema)
+
+	q := url.Values{
+		"id":    []string{"1"},
+		"otp":   []string{"cccccccccccbiucvrkjiegbhidrcicvlgrcgkgurhjnj"},
+		"nonce": []string{"jrFwbaYFhn0HoxZIsd9LQ6w2ceU"},
+	}
+
+	var req verifyReq
+	errs := schema.Parse(zhttp.Request(httptest.NewRequest(http.MethodGet, "/?"+q.Encode(), nil)), &req)
+	require.Empty(t, errs)
+	require.Equal(t, "1", req.ID)
+	require.Empty(t, req.Signature)
 }
