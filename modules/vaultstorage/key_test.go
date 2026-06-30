@@ -18,7 +18,7 @@ func TestKey_String(t *testing.T) {
 			ID:        1,
 			PublicID:  "cccccccccccc",
 			PrivateID: "112233445566",
-			AESKey:    "00112233445566778899aabbccddeeff",
+			AESKey:    "00112233445566778899aabbccddeeff", // gitleaks:allow test key
 			LockCode:  "aabbccddeeff",
 			Active:    true,
 			Created:   "2023-01-01T00:00:00Z",
@@ -37,7 +37,7 @@ func TestKey_String(t *testing.T) {
 			ID:        2,
 			PublicID:  "dddddddddddd",
 			PrivateID: "aabbccddeeff",
-			AESKey:    "ffeeddccbbaa99887766554433221100",
+			AESKey:    "ffeeddccbbaa99887766554433221100", // gitleaks:allow test key
 			Active:    false,
 		}
 
