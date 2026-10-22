@@ -132,17 +132,8 @@ func (s *Service) verifyHandler(w http.ResponseWriter, r *http.Request) {
 
 	errs := schema.Parse(zhttp.Request(r), &req)
 
-	if len(errs) != 0 {
-		for _, iv := range errs {
-			if message := iv.Message; message != "" {
-				if errResp := s.responseW(w, message, s.apiKey, extra); errResp != nil {
-					log.Error("error sending backend error response", zap.Error(errResp))
-				}
-
-				log.Debug("message", zap.Strings("field", iv.Path), zap.Error(iv))
-				return
-			}
-		}
+	if s.respondOnValidationErrors(w, errs, extra, log) {
+		return
 	}
 
 	// Ok, all checks done, let's try OTP verify
@@ -229,6 +220,25 @@ func (s *Service) verifyHandler(w http.ResponseWriter, r *http.Request) {
 	if err = s.responseW(w, ResponseCodeOK, s.apiKey, extra); err != nil {
 		log.Error("could not send response", zap.Error(err))
 	}
+}
+
+// respondOnValidationErrors sends the first validation error to the client.
+func (s *Service) respondOnValidationErrors(
+	w http.ResponseWriter, errs zog.ZogIssueList, extra map[string]string, log *zap.Logger,
+) bool {
+	for _, iv := range errs {
+		if message := iv.Message; message != "" {
+			if errResp := s.responseW(w, message, s.apiKey, extra); errResp != nil {
+				log.Error("error sending backend error response", zap.Error(errResp))
+			}
+
+			log.Debug("message", zap.Strings("field", iv.Path), zap.Error(iv))
+
+			return true
+		}
+	}
+
+	return false
 }
 
 func (s *Service) version(w http.ResponseWriter, r *http.Request) {

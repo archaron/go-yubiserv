@@ -88,8 +88,7 @@ func (s *Service) GetKey(publicID string) (*Key, error) {
 
 	secret, err := s.vault.Logical().Read(path)
 	if err != nil {
-		var re *api.ResponseError
-		if !errors.As(err, &re) {
+		if _, ok := errors.AsType[*api.ResponseError](err); !ok {
 			return nil, fmt.Errorf("vault get key: %w", err)
 		}
 	}
