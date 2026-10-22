@@ -1,4 +1,4 @@
-FROM golang:1.26-bookworm
+FROM golang:1.27-bookworm
 LABEL maintainer="Alexander Tischenko (tsm@fiberside.ru)"
 
 VOLUME /src
