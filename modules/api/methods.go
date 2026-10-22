@@ -226,6 +226,10 @@ func (s *Service) verifyHandler(w http.ResponseWriter, r *http.Request) {
 func (s *Service) respondOnValidationErrors(
 	w http.ResponseWriter, errs zog.ZogIssueList, extra map[string]string, log *zap.Logger,
 ) bool {
+	if len(errs) == 0 {
+		return false
+	}
+
 	for _, iv := range errs {
 		if message := iv.Message; message != "" {
 			if errResp := s.responseW(w, message, s.apiKey, extra); errResp != nil {
@@ -238,7 +242,12 @@ func (s *Service) respondOnValidationErrors(
 		}
 	}
 
-	return false
+	// Validation failed without a usable message: fail closed.
+	if err := s.responseW(w, ResponseCodeMissingParameter, s.apiKey, extra); err != nil {
+		log.Error("could not send validation error response", zap.Error(err))
+	}
+
+	return true
 }
 
 func (s *Service) version(w http.ResponseWriter, r *http.Request) {
